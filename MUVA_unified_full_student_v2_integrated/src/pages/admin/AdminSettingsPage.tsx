@@ -42,13 +42,13 @@ export function AdminSettingsPage() {
   return (
     <section className={styles.rolePage}>
       <header className={styles.compactHeader}>
-        <div><h1>系统设置</h1><p>配置教学平台基础参数、仿真实例限制和审计策略。开发期仅保存在当前页面状态。</p></div>
+        <div><h1>系统设置</h1><p>配置教学平台基础参数、仿真实例限制和审计策略。当前仅为本地演示，不会修改后端资源调度策略。</p></div>
         <span><Settings size={14} /> 平台级配置</span>
       </header>
 
       <form className={styles.settingsGrid} onSubmit={save}>
         <section className={styles.panel}>
-          <div className={styles.panelHeader}><div className={styles.panelTitle}><Database size={16} />平台基础信息</div><span className={styles.panelSubtle}>后续由配置 API 持久化</span></div>
+          <div className={styles.panelHeader}><div className={styles.panelTitle}><Database size={16} />平台基础信息</div><span className={styles.panelSubtle}>演示配置 · 不会作用于服务端</span></div>
           <div className={styles.settingsForm}>
             <label>平台名称<input name="platformName" defaultValue={settings.platformName} /></label>
             <label>当前学期<input name="semester" defaultValue={settings.semester} /></label>
@@ -74,8 +74,8 @@ export function AdminSettingsPage() {
         </section>
 
         <div className={styles.settingsActions}>
-          <span>{savedAt ? `本地演示配置已保存 · ${savedAt}` : '预留接口：PATCH /api/admin/settings'}</span>
-          <button className={styles.primaryButton} type="submit"><Save size={14} />保存设置</button>
+          <span>{savedAt ? `本地演示配置已保存 · ${savedAt}（不影响服务端）` : '本地演示配置 · 非生产设置'}</span>
+          <button className={styles.primaryButton} type="submit"><Save size={14} />保存演示设置</button>
         </div>
       </form>
     </section>

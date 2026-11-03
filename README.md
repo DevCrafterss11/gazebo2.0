@@ -6,12 +6,44 @@ MUVA 是一个面向无人机课程的本地教学与仿真平台。统一教学
 
 - **实验一：无人机配置与基础飞行**：系统组成学习与自测、飞控参数、训练场景、传感器检查、起飞前检查、基础飞行训练及实验结果。可使用 Mock 完成前端流程，也可连接真实网关与 SITL/Gazebo。
 - **实验二：多机协同飞行**：2–6 架无人机的区域任务规划与执行。前端任务规划和可视化由统一平台提供；真实执行通过独立 Gateway、Gazebo Sim 与多实例 ArduCopter SITL 完成。也可单独使用 Mock 模式体验界面。
-- **实验三：任务协同**：面向多机任务分工、协同流程和理论考核的前端模拟实验；目前走 Mock 流程。
+- **实验三：多无人机集群任务指挥**：15 架默认机队、五类独立任务、资源配置、航线规划与部署、并发调度、模拟执行和结果归档；支持跨任务 GPS 欺骗、逐机独立参数及红色实际轨迹。当前实验三使用前端 Mock 运行。
 - **实验四：安全攻防对抗**：安全事件判断、隔离与恢复、验证和复盘。Mock 可独立体验；真实靶场使用独立 Gateway 与仿真进程。
 - **实验五：自定义安全对抗**：自定义安全训练流程，目前通过前端模拟运行。
 - **Web 地面站**：独立的飞行地图、航线规划、遥测、飞控控制与只读 MAVLink 消息面板。
 
 真实仿真需要相应的 ArduPilot SITL、Gazebo 和插件依赖。未安装这些依赖时，仍可运行 Mock 前端，但不能执行真实飞行仿真。
+
+## 实验步骤与最终版截图
+
+更新日期：**2026 年 11 月 3 日**。下列步骤图由当前版本实际运行截取。完整图文步骤见 [实验使用说明](docs/experiments/README.md)。截图中的飞行与攻防结果为 Mock 教学模拟；真实仿真依赖见下文。
+
+### [实验一：无人机配置与基础飞行 · 完整步骤](docs/experiments/experiment-1/README.md)
+
+![实验一：无人机配置与基础飞行最终版](docs/experiments/experiment-1/07-step.png)
+
+### [实验二：多无人机区域规划与协同飞行 · 完整步骤](docs/experiments/experiment-2/README.md)
+
+![实验二：多无人机区域规划与协同飞行最终版](docs/experiments/experiment-2/02-step.png)
+
+### [实验三：多无人机集群任务指挥 · 完整步骤](docs/experiments/experiment-3/README.md)
+
+![实验三：多无人机集群任务指挥最终版](docs/experiments/experiment-3/05-step.png)
+
+### [实验四：任务安全攻防实验 · 完整步骤](docs/experiments/experiment-4/README.md)
+
+![实验四：任务安全攻防实验最终版](docs/experiments/experiment-4/05-step.png)
+
+### [实验五：自定义安全对抗 · 完整步骤](docs/experiments/experiment-5/README.md)
+
+![实验五：自定义安全对抗最终版](docs/experiments/experiment-5/03-step.png)
+
+### 实验三新增：GPS 逐机配置与实际轨迹
+
+在同一弹窗选择多个任务的无人机，逐机设置偏移、模式、强度和时序；支持批量复制、独立停止和逐机配置持久化。实际受攻击轨迹显示为红色。
+
+![GPS 逐机独立配置](docs/experiments/experiment-3/gps-per-drone.png)
+
+![GPS 攻击下的红色实际轨迹](docs/experiments/experiment-3/gps-live-trajectories.png)
 
 ## 前端工程
 

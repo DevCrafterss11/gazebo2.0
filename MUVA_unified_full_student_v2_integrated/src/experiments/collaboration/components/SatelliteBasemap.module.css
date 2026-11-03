@@ -1,0 +1,6 @@
+.basemap { position: absolute; inset: 0; pointer-events: none; }
+.basemap :global(.maplibregl-ctrl-attrib) { pointer-events: auto; font-size: 10px; background: #092a36e8; color: #b9d5d8; }
+.basemap :global(.maplibregl-ctrl-attrib a) { color: inherit; }
+.message { padding: 2px 0 6px; border-bottom: 1px solid #40606c; color: #dbd1b4; font-size: 12px; line-height: 1.5; }
+.message button { margin-left: 8px; padding: 3px 8px; border: 1px solid #4e8991; border-radius: 4px; background: #19434b; color: #baf7e9; }
+.message span { display: inline; margin-left: 8px; margin-top: 4px; color: #9abfc6; }

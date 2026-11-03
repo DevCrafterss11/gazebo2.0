@@ -1,76 +1,54 @@
-import { Activity, AlertTriangle, ChevronRight, Clock3, Gauge, GraduationCap, RadioTower, Users } from 'lucide-react';
+import { BookOpenCheck, ChevronRight, Clock3, GraduationCap, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
+import { teacherApi } from '../../services/teacherApi';
+import type { AdminCourse, AdminUser } from '../../types/admin';
 import styles from '../platform/PlatformPages.module.css';
 
-const runningExperiments = [
-  ['航点任务规划实验', '软件工程 1 班', '28 / 42', '2 人异常', '14:00-16:00'],
-  ['基础飞行控制实验', '软件工程 2 班', '28 / 40', '运行正常', '14:00-16:00'],
-  ['PID 参数调节实验', '自动化 1 班', '16 / 38', '运行正常', '15:30-17:00'],
-] as const;
-
 export function TeacherDashboardPage() {
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [students, setStudents] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    void Promise.all([teacherApi.listCourses(), teacherApi.listStudents()]).then(([courseResult, studentResult]) => {
+      if (active) { setCourses(courseResult.items); setStudents(studentResult.items); }
+    }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : '教学数据加载失败'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
-        <div><h1>教师工作台</h1><p>统一查看课程教学、实验进度、学生状态与待办事项。</p></div>
-        <span><Clock3 size={15} />{new Date().toLocaleDateString('zh-CN')} · 第 3 教学周</span>
+        <div><h1>教师工作台</h1><p>只统计当前教师所负责的课程及学生；实验监控和成绩尚未连接真实教学数据。</p></div>
+        <span><Clock3 size={15} />{new Date().toLocaleDateString('zh-CN')}</span>
       </header>
-
+      {loading && <p role="status">正在加载教学数据…</p>}
+      {error && <p role="alert">{error}</p>}
       <div className={styles.dashboardGrid}>
         <section className={`${styles.panel} ${styles.statusPanel}`}>
           <h2><GraduationCap size={18} />教学概览</h2>
           <div className={styles.statusGrid}>
-            <div className={styles.statusCard}><span>我的课程</span><strong>3</strong><i>● 3 个教学班</i></div>
-            <div className={styles.statusCard}><span>学生人数</span><strong>126</strong><i>● 今日在线 72</i></div>
-            <div className={styles.statusCard}><span>进行中实验</span><strong>2</strong><i>● 56 人正在实验</i></div>
-            <div className={styles.statusCard}><span>待批改报告</span><strong>18</strong><i className={styles.waiting}>● 等待处理</i></div>
+            <div className={styles.statusCard}><span>我的课程</span><strong>{loading ? '—' : courses.length}</strong><i>由管理员分配</i></div>
+            <div className={styles.statusCard}><span>学生人数</span><strong>{loading ? '—' : students.length}</strong><i>跨课程去重</i></div>
+            <div className={styles.statusCard}><span>进行中课程</span><strong>{loading ? '—' : courses.filter((c) => c.status === '进行中').length}</strong><i>按课程状态统计</i></div>
+            <div className={styles.statusCard}><span>已停用学生</span><strong>{loading ? '—' : students.filter((s) => s.status === 'disabled').length}</strong><i>请联系管理员处理</i></div>
           </div>
         </section>
-
         <section className={`${styles.panel} ${styles.currentPanel}`}>
-          <h2><Gauge size={18} />当前待办</h2>
+          <h2><BookOpenCheck size={18} />教学入口</h2>
           <div className={styles.currentExperiment}>
-            <span>PRIORITY 1 / 3</span>
-            <strong>航点任务规划实验</strong>
-            <small>软件工程 1 班 · 28 / 42 已开始 · 2 人异常</small>
-            <Link className={styles.primaryButton} to="/teacher/monitor">进入实验监控 <ChevronRight size={15} /></Link>
+            <span>MY COURSES</span><strong>{courses[0]?.name ?? '暂无授课课程'}</strong>
+            <small>{courses[0] ? `${courses[0].className} · ${courses[0].semester}` : '请联系管理员分配课程'}</small>
+            <Link className={styles.primaryButton} to="/teacher/courses">查看课程 <ChevronRight size={15} /></Link>
           </div>
         </section>
-
-        <section className={`${styles.panel} ${styles.recentPanel}`}>
-          <h2><Activity size={18} />进行中实验</h2>
-          <div className={styles.recordList}>
-            {runningExperiments.map(([name, className, started, state, time]) => (
-              <Link className={styles.recordItem} to="/teacher/monitor" key={name}>
-                <span><strong>{name}</strong><small>无人机飞行控制</small></span>
-                <span><small>教学班</small><strong>{className}</strong></span>
-                <span><small>已开始</small><strong>{started}</strong></span>
-                <span><small>状态</small><strong>{state}</strong></span>
-                <span><small>时间</small><strong>{time}</strong></span>
-                <ChevronRight size={16} />
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className={`${styles.panel} ${styles.vehiclePanel}`}>
-          <h2><RadioTower size={18} />教学状态</h2>
-          <div className={styles.metricGrid}>
-            <div className={styles.metricCard}><span>基础飞行完成率</span><strong>92%</strong></div>
-            <div className={styles.metricCard}><span>航点规划完成率</span><strong>78%</strong></div>
-            <div className={styles.metricCard}><span>PID 调节完成率</span><strong>65%</strong></div>
-            <div className={styles.metricCard}><span>本周平均成绩</span><strong>86.4</strong></div>
-          </div>
-        </section>
-
         <section className={`${styles.panel} ${styles.alertsPanel}`}>
-          <h2><AlertTriangle size={18} />最近异常</h2>
+          <h2><Users size={18} />我的课程</h2>
           <div className={styles.alertList}>
-            <span><AlertTriangle size={14} />王五 · GPS 信号异常，实验已暂停</span>
-            <span><AlertTriangle size={14} />李四 · 飞行高度超过实验限制 20m</span>
-            <span><AlertTriangle size={14} />赵六 · 实验剩余时间不足 5 分钟</span>
-            <span className={styles.healthyAlert}><Users size={14} />其余学生实验状态正常</span>
+            {courses.map((course) => <Link key={course.id} to="/teacher/courses"><BookOpenCheck size={14} />{course.name} · {course.className}（{course.studentCount} 人）</Link>)}
+            {!courses.length && !loading && <span>暂无课程</span>}
           </div>
         </section>
       </div>

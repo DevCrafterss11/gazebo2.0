@@ -1,4 +1,4 @@
-import { LockKeyhole, Save, ShieldCheck } from 'lucide-react';
+import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import styles from '../role/RolePages.module.css';
@@ -31,7 +31,6 @@ const roleName: Record<RoleKey, string> = { admin: '管理员', teacher: '教师
 export function AdminPermissionsPage() {
   const [permissions, setPermissions] = useState(initialPermissions);
   const [selectedRole, setSelectedRole] = useState<RoleKey>('admin');
-  const [savedAt, setSavedAt] = useState('');
 
   const allowedCount = useMemo(() => permissions.filter((item) => item[selectedRole]).length, [permissions, selectedRole]);
 
@@ -46,7 +45,7 @@ export function AdminPermissionsPage() {
   return (
     <section className={styles.rolePage}>
       <header className={styles.compactHeader}>
-        <div><h1>角色权限</h1><p>采用 RBAC + 数据范围控制。这里先完成权限配置前端，后端接入后由权限编码和数据域共同校验。</p></div>
+        <div><h1>角色权限</h1><p>数据库模式由服务端执行固定 RBAC；页面仅展示教学示意，不能修改实际访问权限。</p></div>
         <span><ShieldCheck size={14} /> RBAC + 数据权限</span>
       </header>
 
@@ -54,11 +53,11 @@ export function AdminPermissionsPage() {
         <div className={styles.roleTabs}>
           {(['admin', 'teacher', 'student'] as RoleKey[]).map((role) => <button className={selectedRole === role ? styles.roleTabActive : ''} type="button" onClick={() => setSelectedRole(role)} key={role}>{roleName[role]}</button>)}
         </div>
-        <div className={styles.permissionSummary}><span>当前角色</span><strong>{roleName[selectedRole]}</strong><span>已启用 {allowedCount} 项页面/业务权限</span><button className={styles.primaryButton} type="button" onClick={() => setSavedAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }))}><Save size={13} />保存权限</button></div>
+        <div className={styles.permissionSummary}><span>当前角色</span><strong>{roleName[selectedRole]}</strong><span>已启用 {allowedCount} 项页面/业务权限</span><button className={styles.primaryButton} type="button" disabled><ShieldCheck size={13} />权限由服务端固定</button></div>
       </section>
 
       <section className={styles.panel} style={{ marginTop: 12 }}>
-        <div className={styles.panelHeader}><div className={styles.panelTitle}><LockKeyhole size={16} />权限矩阵</div><span className={styles.panelSubtle}>{savedAt ? `本地演示已保存 · ${savedAt}` : '预留接口：PUT /api/admin/roles/{role}/permissions'}</span></div>
+        <div className={styles.panelHeader}><div className={styles.panelTitle}><LockKeyhole size={16} />权限矩阵</div><span className={styles.panelSubtle}>服务端固定 RBAC；此矩阵仅作教学说明，不会改变实际访问权限</span></div>
         <div className={styles.permissionMatrix}>
           <div className={styles.permissionMatrixHead}><span>权限模块</span><span>数据范围</span><span>管理员</span><span>教师</span><span>学生</span></div>
           {permissions.map((item) => (
@@ -67,7 +66,7 @@ export function AdminPermissionsPage() {
               <span>{item.scope}</span>
               {(['admin', 'teacher', 'student'] as RoleKey[]).map((role) => {
                 const isProtectedAdminPrivacy = item.locked && role === 'admin';
-                return <label className={isProtectedAdminPrivacy ? styles.permissionLocked : ''} key={role}><input type="checkbox" checked={item[role]} disabled={isProtectedAdminPrivacy} onChange={() => { setSelectedRole(role); setPermissions((items) => items.map((row) => row.key === item.key ? { ...row, [role]: !row[role] } : row)); }} /><span>{isProtectedAdminPrivacy ? '固定禁止' : item[role] ? '允许' : '禁止'}</span></label>;
+                return <label className={isProtectedAdminPrivacy ? styles.permissionLocked : ''} key={role}><input type="checkbox" checked={item[role]} disabled onChange={() => { setSelectedRole(role); setPermissions((items) => items.map((row) => row.key === item.key ? { ...row, [role]: !row[role] } : row)); }} /><span>{isProtectedAdminPrivacy ? '固定禁止' : item[role] ? '允许' : '禁止'}</span></label>;
               })}
             </div>
           ))}

@@ -14,6 +14,7 @@ export class ApiSwarmService implements SwarmService {
   private sessionId: string | null = null;
   private revision = 0;
   private candidatePending = false;
+  private reclaiming = false;
 
   constructor() {
     this.client.interceptors.response.use(response => response, (error: unknown) => {
@@ -108,19 +109,32 @@ export class ApiSwarmService implements SwarmService {
     this.missions = [];
     this.candidatePending = false;
   }
-  async abortSimulation(sessionId?: string): Promise<void> {
-    const localSession = sessionId ?? this.sessionId;
-    const { data: health } = await this.client.get<{ sessionId: string | null }>('/health');
-    const backendSession = health.sessionId;
-    if (backendSession !== null && typeof backendSession !== 'string') throw new Error('后端机群会话状态无效，未执行中止');
-    if (backendSession) {
-      await this.client.post('/abort-simulation', { sessionId: backendSession, confirmed: true });
+  async abortSimulation(_sessionId?: string): Promise<void> {
+    if (this.reclaiming) throw new Error('正在回收仿真，请等待当前操作完成');
+    this.reclaiming = true;
+    clearTimeout(this.retry);
+    try {
+      const { data: health } = await this.client.get<{ sessionId: string | null }>('/health');
+      const backendSession = health.sessionId;
+      if (backendSession !== null && typeof backendSession !== 'string') throw new Error('后端机群会话状态无效，未执行中止');
+      if (backendSession) {
+        try {
+          await this.client.post('/abort-simulation', { sessionId: backendSession, confirmed: true });
+        } catch (error) {
+          // The response may be lost after cleanup. Reconcile, never abort a replacement session.
+          const latest = await this.client.get<{ sessionId: string | null; gazebo: boolean }>('/health').catch(() => null);
+          if (!latest || latest.data.sessionId !== null || latest.data.gazebo !== false) throw error;
+        }
+      }
+      this.revision += 1;
+      this.disconnect();
+      this.sessionId = null;
+      this.missions = [];
+      this.candidatePending = false;
+    } finally {
+      this.reclaiming = false;
+      this.connect();
     }
-    this.revision += 1;
-    this.disconnect();
-    if (!localSession || localSession === backendSession || !backendSession) this.sessionId = null;
-    this.missions = [];
-    this.candidatePending = false;
   }
   dispose(): void { this.revision += 1; this.disconnect(); this.listeners.clear(); }
 
@@ -137,12 +151,13 @@ export class ApiSwarmService implements SwarmService {
   }
 
   private connect(): void {
-    if (!this.sessionId || this.socket || !this.listeners.size) return;
+    if (this.reclaiming || !this.sessionId || this.socket || !this.listeners.size) return;
     const url = new URL(import.meta.env.VITE_SWARM_WS_URL ?? 'ws://127.0.0.1:8002/ws/swarm');
     url.searchParams.set('sessionId', this.sessionId);
     const socket = new WebSocket(url);
     this.socket = socket;
     socket.onmessage = event => {
+      if (this.reclaiming || this.socket !== socket) return;
       try {
         const value: unknown = JSON.parse(String(event.data));
         if (typeof value === 'object' && value !== null && 'drones' in value && Array.isArray(value.drones) && 'runtime' in value) this.receive(value as SwarmSnapshot);
@@ -151,10 +166,11 @@ export class ApiSwarmService implements SwarmService {
     socket.onclose = event => {
       if (this.socket !== socket) return;
       this.socket = null;
+      if (this.reclaiming) return;
       this.connectionLost(event.code === 1008 ? '机群会话失效，请重新初始化' : '实验二遥测断开；后端飞行未被本地暂停，请重新连接');
       if (event.code !== 1008 && this.listeners.size) this.retry = setTimeout(() => this.connect(), 1500);
     };
-    socket.onerror = () => this.connectionLost('实验二遥测连接异常');
+    socket.onerror = () => { if (!this.reclaiming && this.socket === socket) this.connectionLost('实验二遥测连接异常'); };
   }
 
   private connectionLost(error: string): void {

@@ -85,3 +85,18 @@ Web 前端集成的只读回传控制台使用 UDP 14553。独立终端监控器
 ```bash
 PYTHONPATH=.packages:. python3 -m pytest -q
 ```
+
+## 账号与课程数据库（可选）
+
+默认前端仍为独立 Mock，不需要 Docker。要启用持久化账号、管理员用户/课程/成员/审计/实验定义和教师课程/学生名单/实验定义：
+
+1. 在本目录复制 `.env.example` 为 `.env`，修改 `POSTGRES_PASSWORD` 为强随机密码，执行 `docker compose up -d database`。数据库仅监听本机，数据保存在命名卷 `muva_pgdata`；不要将 `.env` 提交到仓库。
+2. 安装 `requirements.txt`（包含 PostgreSQL 驱动）。设置 `MUVA_DATABASE_URL=postgresql://muva:<数据库密码>@127.0.0.1:5432/muva`，在本目录执行 `python3 -m muva_gateway.management init`，再执行 `python3 -m muva_gateway.management bootstrap-admin --username admin01`。后者会交互读取至少 10 位的管理员密码，不写入命令历史；重复引导不会覆盖已有账号。
+3. 使用相同的 `MUVA_DATABASE_URL` 启动 `./dev.sh`（或网关的 uvicorn 启动方式）。前端开发环境配置 `VITE_AUTH_DATA_SOURCE=api`、`VITE_ADMIN_DATA_SOURCE=api`、`VITE_API_BASE_URL=http://127.0.0.1:8000/api`，重启 `npm run dev`。不要把数据库 URL 配置到 Vite：数据库凭证仅在后端。
+4. 管理员登录后创建教师/学生账号（初始密码不少于 10 位），创建课程并指定教师，在课程详情加入学生；教师登录后只能查看自己课程及其学生，并为自己的课程创建实验草稿、发布和结束。停用或重置密码会撤销该用户的现有会话；个人信息页允许已登录用户用原密码修改密码，成功后撤销其所有会话并要求重新登录；退出会撤销本次会话。访问控制由后端校验，不依赖前端角色路由。
+
+**范围与限制：** 当前持久化实现仅包含身份、课程、选课名单、实验定义及审计。实验定义的发布只是状态管理，不代表学生端已经联动；教师的成绩、监控和管理员的角色权限设置、仿真资源等其他界面仍是前端教学演示，不能当作真实业务数据或真实资源控制；资源 API 在数据库模式明确返回 501。当前 HTTP 登录令牌保存在浏览器 `sessionStorage`，有效期 8 小时；生产部署还需 HTTPS、密码找回、登录限速、会话清理、数据库迁移与备份，并为原有飞行 API / WebSocket 增加统一鉴权后才能对公网开放。
+
+本地无需 Docker 的接口自测：`PYTHONPATH=.packages:. python3 -m pytest -q tests/test_management.py`，测试使用临时 SQLite 数据库，不影响已有仿真数据。
+
+已知联动边界：教师“实验定义”的发布仅持久化状态，不会自动改变学生实验目录或权限；教师监控、成绩及管理员资源控制在真实模式未接入，不应使用这些页面进行实际飞行管控或成绩发布。正式对外部署前须统一保护已有的 `/api/v1` 和 WebSocket 飞控端点（本次新增的管理 API 已有后端角色校验）。

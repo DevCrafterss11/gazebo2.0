@@ -1,7 +1,7 @@
 import { ClipboardList, Search, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { adminApi } from '../../services/adminApi';
+import { adminApi, adminPresentation } from '../../services/adminApi';
 import type { AuditLogEntry, AuditResult } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
@@ -54,7 +54,7 @@ export function AdminLogsPage() {
       {error ? <div className={styles.pageMessage}>{error}</div> : null}
 
       <section className={styles.panel}>
-        <div className={styles.panelHeader}><div className={styles.panelTitle}><ClipboardList size={16} />审计事件</div><span className={styles.panelSubtle}>当前 {filtered.length} 条演示记录</span></div>
+        <div className={styles.panelHeader}><div className={styles.panelTitle}><ClipboardList size={16} />审计事件</div><span className={styles.panelSubtle}>当前 {filtered.length} 条{adminPresentation.auditLabel}</span></div>
         <div className={styles.dataTable}>
           <div className={`${styles.tableHead} ${styles.adminLogsV2}`}><span>时间</span><span>账号</span><span>模块</span><span>操作内容</span><span>来源 IP</span><span>结果</span></div>
           {loading ? <div className={styles.emptyHint}>正在加载审计日志…</div> : filtered.map((item) => (

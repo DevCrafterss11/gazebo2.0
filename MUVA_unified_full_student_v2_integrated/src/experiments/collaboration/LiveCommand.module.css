@@ -1,0 +1,171 @@
+.dialog {
+  position: fixed; inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none;
+  margin: 0; padding: 0; border: 0; color: var(--color-text-primary); background: var(--color-bg-app);
+}
+.dialog::backdrop { background: #020d1c; }
+.station.station { height: 100%; display: flex; flex-direction: column; border: 0; border-radius: 0; overflow: hidden; }
+.station button, .station select, .station input { font: inherit; }
+.station button:focus-visible, .station select:focus-visible, .station input:focus-visible { outline: 2px solid var(--color-primary-hover); outline-offset: 2px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 20px; background: var(--color-bg-panel); border-bottom: 1px solid var(--color-divider); }
+.topbar > div { display: flex; align-items: center; gap: 12px; color: var(--color-primary-hover); }
+.topbar h2 { margin: 0; font-size: 19px; line-height: 1.4; color: var(--color-text-primary); }
+.topbar h2 small { display: block; font-size: 12px; font-weight: 400; color: var(--color-text-secondary); margin-top: 3px; }
+.topbar button, .inspection button, .taskActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-panel-elevated); color: var(--color-text-primary); }
+.headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.layout.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 270px minmax(0, 1fr) 310px; align-items: stretch; }
+.telemetry { min-height: 0; display: flex; flex-direction: column; background: #06283a; }
+.telemetry > header { padding: 13px 14px; border-bottom: 1px solid var(--color-divider); }
+.telemetry > header > div { display: flex; align-items: center; gap: 8px; }
+.telemetry > header > span { display: block; margin-top: 5px; color: var(--color-text-secondary); font-size: 12px; }
+.telemetryScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px; scrollbar-width: thin; scrollbar-color: #39727c transparent; }
+.telemetryCard { margin-bottom: 10px; padding: 11px; border: 1px solid #245866; border-radius: var(--radius-md); background: #0b3442; font-size: 12px; }
+.telemetryCard.selected { border-color: var(--color-primary-hover); background: #104455; box-shadow: inset 3px 0 var(--color-primary-hover); }
+.telemetryCard.warning { border-color: var(--color-warning); }
+.telemetryCard > button { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; padding: 0; background: none; color: var(--color-text-primary); border: 0; }
+.telemetryCard > button > svg { color: #7de3d5; flex-shrink: 0; }
+.telemetryCard > button b { font-size: 15px; }
+.telemetryCard small { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; color: var(--color-text-secondary); }
+.telemetryCard > button > span { margin-left: auto; font-size: 12px; color: #9de5d5; }
+.cardLink { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 10px; padding: 7px 0; border-top: 1px solid #275361; color: #a6d5dc; }
+.cardLink > span:last-child { display: flex; align-items: center; gap: 4px; }
+.telemetryCard dl, .inspection dl { display: grid; gap: 7px; margin: 5px 0; }
+.telemetryCard dl > div, .inspection dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.telemetryCard dt, .inspection dt { color: var(--color-text-secondary); flex-shrink: 0; }
+.telemetryCard dd, .inspection dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.telemetryCard p { margin: 10px 0 8px; color: #b5d4de; overflow-wrap: anywhere; }
+.telemetryCard footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; border-top: 1px solid #275361; padding-top: 8px; font-size: 11px; color: var(--color-text-secondary); }
+.mapHost.mapHost { min-height: 0; width: auto; display: flex; flex-direction: column; overflow: auto; border: 1px solid #245866; border-width: 0 1px; }
+.mapHost.mapHost > div:first-child { flex: 1; min-height: 340px; }
+.mapHost.mapHost [data-testid="fleet-map"] { flex: 1; height: auto; min-height: 290px; background-color: #082a36; }
+.mapHost.mapHost [data-testid^="marker-uav"] { width: 52px; height: 52px; flex-direction: column; gap: 0; border-radius: 8px; background: #082e3be6; }
+.mapHost.mapHost [data-testid^="marker-uav"] b { font-size: 11px; line-height: 14px; }
+.inspector.inspector { width: auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 14px; }
+.inspection { border-bottom: 1px solid #2b5864; padding-bottom: 14px; margin-bottom: 16px; font-size: 12px; }
+.inspection h3 { display: flex; align-items: center; gap: 8px; }
+.inspection h3 small { margin-left: auto; color: #9de5d5; font-size: 12px; font-weight: 400; }
+.inspection button { width: 100%; margin-top: 10px; }
+.inspection p { font-size: 12px; margin: 7px 0 0; }
+.taskActions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.taskActions button { font-size: 12px; padding: 6px 9px; }
+.toolbar.toolbar { flex-shrink: 0; padding: 10px 15px; }
+.events.events { flex-shrink: 0; max-height: 130px; overflow: auto; padding: 9px 16px; background: #061f30; }
+.events summary { color: #b5d4de; cursor: pointer; }
+.events ol { margin: 8px 0 0; }
+@media (max-width: 1250px) and (min-width: 901px) {
+  .layout.layout { grid-template-columns: 225px minmax(0, 1fr) 270px; }
+  .telemetryCard { padding: 9px; }
+}
+@media (max-width: 900px) {
+  .dialog { overflow-y: auto; }
+  .station.station { height: auto; min-height: 100%; overflow: visible; }
+  .topbar { position: sticky; top: 0; z-index: 10; padding: 10px 12px; }
+  .topbar h2 { font-size: 16px; }
+  .topbar > div > svg { display: none; }
+  .topbar h2 small { max-width: 220px; font-size: 11px; }
+  .topbar button { font-size: 12px; padding: 8px; flex-shrink: 0; }
+  .layout.layout { display: grid; grid-template-columns: minmax(0, 1fr); flex: none; }
+  .mapHost.mapHost { grid-row: 1; border-width: 1px 0; }
+  .mapHost.mapHost > div:first-child { min-height: 470px; }
+  .mapHost.mapHost [data-testid="fleet-map"] { min-height: 390px; }
+  .inspector.inspector { grid-row: 2; overflow: visible; }
+  .telemetry { grid-row: 3; border-top: 1px solid #245866; }
+  .telemetryScroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 500px; }
+  .telemetryCard { margin: 0; }
+  .events.events { max-height: 180px; }
+}
+@media (max-width: 540px) {
+  .telemetryScroll { grid-template-columns: minmax(0, 1fr); }
+  .topbar { gap: 8px; }
+  .topbar h2 small { max-width: 190px; }
+  .mapHost.mapHost [data-testid^="marker-uav"] { width: 42px; height: 44px; min-width: 0; }
+}
+/* Let the narrow layout scroll naturally; controls never cover the map or forms. */
+@media (max-width: 900px) {
+  .toolbar.toolbar { position: static; }
+}
+@media (min-width: 901px) {
+  .topbar { padding: 8px 16px; }
+  .topbar h2 { font-size: 17px; }
+  .topbar h2 small { margin-top: 1px; }
+  .navigation.navigation { padding: 4px 8px; }
+  .navigation.navigation button { min-height: 36px; padding: 7px 12px; }
+  .status.status { padding: 9px 16px; min-height: 54px; }
+  .mapHost.mapHost > div:first-child { min-height: 0; }
+  .mapHost.mapHost [data-testid="fleet-map"] { min-height: 220px; }
+  .notice.notice { padding: 8px 14px; margin: 0; }
+  .events.events { max-height: 100px; }
+}
+
+/* Reference-style live surface: telemetry rail + full canvas + floating controls. */
+.liveSurface { height: 100%; display: grid; grid-template-columns: 250px minmax(0, 1fr); overflow: hidden; font-size: 13px; }
+.liveSurface button { font: inherit; cursor: pointer; }
+.liveSurface button:disabled { opacity: .44; cursor: not-allowed; }
+.liveSurface button:focus-visible { outline: 2px solid #40c9bd; outline-offset: 2px; }
+.liveSurface > .telemetry { height: 100%; border-right: 1px solid #39606b; }
+.liveSurface .telemetry > header { padding: 10px 13px; }
+.liveSurface .telemetryScroll { padding: 7px; }
+.liveSurface .telemetryCard { border-radius: 4px; font-size: 12px; padding: 10px; margin-bottom: 8px; }
+.liveSurface .telemetryCard dl { gap: 5px; }
+.liveMap { min-width: 0; min-height: 0; position: relative; overflow: hidden; background: #c6e3e9; }
+.liveMap > div:first-child { height: 100%; display: flex; flex-direction: column; }
+.liveMap [data-testid="fleet-map"] { flex: 1; height: 100%; min-height: 0; background: #c6e3e9; }
+
+
+.mapHeading { position: absolute; top: 15px; left: 15px; display: flex; gap: 9px; align-items: center; padding: 9px 12px; border: 1px solid #3b707b; border-radius: 5px; background: #082c38ed; color: #c9eceb; pointer-events: none; }
+.mapHeading b { color: white; }
+.mapHeading span { font-size: 11px; }
+.mapActions { position: absolute; top: 15px; right: 16px; display: flex; gap: 6px; }
+.mapActions button, .flightPanel button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 9px; min-height: 30px; border: 1px solid #42727a; border-radius: 4px; color: #e1f5f4; background: #174953; font-size: 12px; }
+.mapActions button { background: #082c38f2; }
+.flightPanel { --flight-panel-top: 64px; position: absolute; z-index: 6; top: var(--flight-panel-top); right: 68px; bottom: auto; max-height: calc(100% - var(--flight-panel-top) - var(--map-hud-height, 75px) - 48px); width: 350px; display: flex; flex-direction: column; background: #0b303bdc; border: 1px solid #58838b; border-radius: 5px; color: #dfefef; box-shadow: 0 3px 14px #173e4b30; backdrop-filter: blur(8px); }
+.flightPanel > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; border-bottom: 1px solid #476973; }
+.flightPanel > header span { color: #64d8c8; font-weight: 600; }
+.panelScroll { padding: 0 12px 12px; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #608b91 transparent; }
+.panelScroll section { padding-top: 11px; }
+.panelScroll h3 { margin: 0 0 7px; font-size: 13px; font-weight: 600; }
+.panelScroll h3 small { font-size: 11px; font-weight: 400; margin-left: 7px; color: #a5c5cb; }
+.controlRow, .modeRow { display: flex; gap: 5px; flex-wrap: wrap; }
+.flightState { display: grid; gap: 5px; margin: 0; font-size: 12px; }
+.flightState > div { display: flex; justify-content: space-between; gap: 12px; }
+.flightState dt { color: #b6d1d5; }
+.flightState dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.capability, .executionState { margin: 6px 0 0; font-size: 11px; color: #aac6cb; line-height: 1.6; }
+.modeRow { align-items: center; margin-bottom: 5px; }
+.modeRow span { width: 30px; font-size: 11px; }
+.modeRow button { padding: 3px 5px; min-height: 24px; font-size: 10px; }
+.coordinateLabel { display: block; font-size: 12px; color: #c6e0e2; margin-top: 8px; }
+.coordinateLabel textarea { width: 100%; box-sizing: border-box; min-height: 83px; resize: vertical; margin-top: 5px; padding: 7px; border: 1px solid #54747c; border-radius: 3px; background: #0826329c; color: #bfe0e1; font-size: 11px; line-height: 1.6; }
+@media (max-width: 1250px) { .liveSurface { grid-template-columns: 220px minmax(0,1fr); } .flightPanel { width: 310px; } .mapHeading span:last-child { display: none; } }
+@media (max-width: 900px) { .liveSurface { grid-template-columns: 190px minmax(0,1fr); height: 100dvh; } .liveSurface > .telemetry { grid-row: auto; } .liveSurface .telemetryScroll { display: block; max-height: none; } .mapHeading { top: 9px; left: 9px; padding: 7px; } .mapHeading span { display: none; } .mapActions { top: 50px; right: 9px; left: 9px; flex-wrap: wrap; } .flightPanel { --flight-panel-top: 92px; right: 68px; width: min(310px,calc(100% - 86px)); } }
+@media (max-width: 540px) { .liveSurface { grid-template-columns: 1fr; grid-template-rows: minmax(480px, 70dvh) 420px; height: auto; min-height: 100%; overflow: visible; } .liveMap { grid-row: 1; } .liveSurface > .telemetry { grid-row: 2; border-top: 1px solid #39606b; } .liveSurface .telemetryScroll { display: grid; grid-template-columns: 1fr; overflow-y: auto; } .mapActions { top: 9px; left: auto; } .mapHeading { top: 50px; } .flightPanel { --flight-panel-top: 89px; right: 68px; width: min(320px,calc(100% - 86px)); } }
+
+@media (max-width: 900px) { .mapHeading span:first-of-type { display: inline; } }
+
+/* Unsupported controls stay available for inspection, without dominating flight status. */
+.unsupportedControls { margin-top: 14px; padding: 10px 0; border-top: 1px solid #41616d; border-bottom: 1px solid #41616d; }
+.unsupportedControls summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.unsupportedControls summary small { margin-left: 6px; color: #aac3ca; font-size: 11px; font-weight: 400; }
+.coordinateLabel textarea { min-height: 64px; }
+
+.flightPanel button:disabled { opacity: .42; cursor: not-allowed; }
+.flightPanel button:not(:disabled):hover { background: #20616b; border-color: #77cfc8; }
+.flightPanel select, .flightPanel input { box-sizing: border-box; max-width: 100%; min-width: 0; border: 1px solid #52747d; border-radius: 4px; padding: 5px 7px; color: #e5f4f3; background: #0a2b38; font: inherit; }
+.flightPanel > header select { width: 110px; font-size: 12px; }
+.flightForm { display: flex; align-items: end; gap: 8px; margin: 8px 0; font-size: 11px; color: #bad4d9; }
+.flightForm label { flex: 1; display: grid; gap: 5px; }
+.flightForm input, .flightForm select { width: 100%; min-height: 30px; }
+.flightForm > span { padding-bottom: 7px; }
+.secondaryControls { padding: 7px 0; font-size: 12px; }
+.secondaryControls summary { cursor: pointer; line-height: 1.6; }
+.secondaryControls summary small { display: block; color: #a9c8cc; }
+.coordinateInputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0; }
+.coordinateInputs label { display: grid; gap: 5px; font-size: 11px; color: #bad4d9; }
+.coordinateInputs input { width: 100%; }
+.commandReceipts { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.commandReceipts li { display: grid; gap: 3px; padding: 7px 8px; border-left: 2px solid #6dcdb9; background: #123d46; font-size: 11px; line-height: 1.5; }
+.commandReceipts li[data-command-status=pending] { border-color: #d8b26e; }
+.commandReceipts li[data-command-status=rejected] { border-color: #ed91a0; }
+.commandReceipts span, .commandReceipts time { color: #bbd4d8; }
+
+.telemetryHint { margin: 7px 0 0; color: #a6c5ce; font-size: 11px; line-height: 1.5; }
+.telemetryCard > button > .telemetryAircraft { display: block; margin: 0 3px 0 0; color: #7de3d5; flex: 0 0 30px; }

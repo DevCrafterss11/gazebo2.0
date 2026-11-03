@@ -192,6 +192,65 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || 'playwright-cor
     await page.getByRole('button', { name: '重试在线底图', exact: true }).waitFor({ timeout: 15000 });
     assert.equal(await map.locator('img').count(), 0);
     assert.match(await map.innerText(), /不是地理底图/);
+    // With the basemap offline, all route controls must remain available.
+    await page.evaluate(async () => {
+      const { useTrainingStore } = await import('/src/stores/trainingStore.ts');
+      // Stop the training fixture subscription so telemetry cannot overwrite its completed tasks.
+      useTrainingStore.getState().reset();
+      const tasks = useTrainingStore.getState().tasks.map(task => ({ ...task, status: 'COMPLETED', progress: 100 }));
+      useTrainingStore.setState({ tasks });
+      (await import('/src/stores/routePlannerStore.ts')).useRoutePlannerStore.getState().open(2);
+    });
+    const offlineMap = map.getByLabel('离线飞行坐标视图', { exact: true });
+    await offlineMap.waitFor();
+    const offlineBounds = await offlineMap.boundingBox();
+    await offlineMap.click({ position: { x: offlineBounds.width * .58, y: offlineBounds.height * .55 } });
+    assert.equal(await page.evaluate(async () => (await import('/src/stores/routePlannerStore.ts')).useRoutePlannerStore.getState().waypoints.length), 1);
+    await map.getByRole('button', { name: '撤销上一个航点', exact: true }).click();
+    assert.equal(await page.evaluate(async () => (await import('/src/stores/routePlannerStore.ts')).useRoutePlannerStore.getState().waypoints.length), 0);
+    await offlineMap.click({ position: { x: offlineBounds.width * .58, y: offlineBounds.height * .55 } });
+    const executeOffline = map.getByRole('button', { name: '执行航线', exact: true });
+    assert.equal(await executeOffline.isEnabled(), true);
+    if (process.env.MUVA_SCREENSHOT_DIR) {
+      require('node:fs').mkdirSync(process.env.MUVA_SCREENSHOT_DIR, { recursive: true });
+      await page.screenshot({ path: `${process.env.MUVA_SCREENSHOT_DIR}/experiment1-offline-planning.png`, fullPage: true });
+    }
+    await executeOffline.click();
+    await waitForState(async () => (await import('/src/stores/routePlannerStore.ts')).useRoutePlannerStore.getState().phase === 'RUNNING');
+    const submitted = await page.evaluate(async () => {
+      const { services } = await import('/src/services/serviceRegistry.ts');
+      return { mission: await services.missions.getCurrentMission(), armed: (await services.flight.getState()).armed };
+    });
+    assert.equal(submitted.mission.state, 'RUNNING');
+    assert.equal(submitted.mission.waypoints.length, 3);
+    assert.equal(submitted.armed, true);
+    // Verify the independent basic-flight controls also work without online tiles.
+    await page.evaluate(async () => {
+      const { useExperimentStore } = await import('/src/stores/experimentStore.ts');
+      const state = useExperimentStore.getState();
+      useExperimentStore.setState({ preflightPassed: true, configuration: { ...state.configuration,
+        flightParameters: { ...state.configuration.flightParameters, takeoffAltitude: 2 } } });
+    });
+    await page.getByRole('button', { name: /TAKEOFF/ }).click();
+    await waitForState(async () => (await import('/src/stores/flightStore.ts')).useFlightStore.getState().status.position.altitude > 1);
+    await page.getByRole('button', { name: '前进', exact: true }).click();
+    await waitForState(async () => (await import('/src/stores/flightStore.ts')).useFlightStore.getState().status.north > 1);
+    await page.getByRole('button', { name: /LAND 降落/ }).click();
+    await page.getByRole('button', { name: '确认降落', exact: true }).click();
+    await waitForState(async () => {
+      const status = (await import('/src/stores/flightStore.ts')).useFlightStore.getState().status;
+      return !status.armed && status.position.altitude < .1;
+    });
+    const evidenceDir = process.env.MUVA_SCREENSHOT_DIR;
+    if (evidenceDir) {
+      require('node:fs').mkdirSync(evidenceDir, { recursive: true });
+      await page.screenshot({ path: `${evidenceDir}/experiment1-offline-route.png`, fullPage: true });
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    await page.evaluate(async home => {
+      (await import('/src/services/mock/MockDroneSimulator.ts')).mockDroneSimulator.initialize(home);
+      (await import('/src/stores/routePlannerStore.ts')).useRoutePlannerStore.getState().cancel();
+    }, configuredHome);
     failTiles = false;
     await page.getByRole('button', { name: '重试在线底图', exact: true }).click();
     await page.waitForTimeout(1500);
@@ -214,6 +273,6 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || 'playwright-cor
     assert.equal(restarted.view, null);
     assert.deepEqual(restarted.track, []);
     assert.deepEqual(errors, []);
-    console.log('PASS: first visit step1; edited city HOME center; actual campus HOME mapped to selected HOME without raw telemetry changes; no phantom vehicle on disconnect; pan/zoom persistence; route return; refresh; HOME locate; tile fallback/retry; existing step8 confirmed restart; no pageerrors. Teaching steps were injected as a targeted map fixture; live tile availability not tested.');
+    console.log('PASS: first visit step1; edited city HOME center; actual campus HOME mapped to selected HOME without raw telemetry changes; no phantom vehicle on disconnect; pan/zoom persistence; route return; refresh; HOME locate; tile fallback with waypoint editing/mission submission and actual basic takeoff/move/land plus retry; existing step8 confirmed restart; no pageerrors. Teaching steps were injected as a targeted map fixture; live tile availability not tested.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

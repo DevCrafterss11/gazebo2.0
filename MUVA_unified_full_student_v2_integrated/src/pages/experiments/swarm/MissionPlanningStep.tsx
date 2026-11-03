@@ -52,7 +52,7 @@ export function MissionPlanningStep({ run }: { run: SwarmRun }) {
           <div><dt>完整总航程</dt><dd>{run.missions.length ? `${(total / 1000).toFixed(2)} km` : '—'}</dd></div>
         </dl>
         {center && <p className={planningStyles.caption}>区域中心 WGS84<br />{center.map((value) => value.toFixed(6)).join(', ')}<br />ENU ({toLocal(center).map((value) => value.toFixed(1)).join(', ')}) m</p>}
-        <p className={planningStyles.caption}>根据绘制顶点计算最小面积外接矩形，沿矩形长边生成蛇形轨迹；覆盖范围会包含部分原多边形以外区域，白线为原边界，黄线为矩形边界。入场和返航畅通时走直线，仅绕开禁飞缓冲与其他无人机等待点。逐机入场 → 并行覆盖 → 逐机返航；航段完成率不等于真实相机覆盖率。</p>
+        <p className={planningStyles.caption}>根据绘制顶点计算最小面积外接矩形，沿矩形长边生成蛇形轨迹；覆盖范围会包含部分原多边形以外区域，白线为原边界，黄线为矩形边界。入场和返航畅通时走直线，仅绕开禁飞缓冲与其他无人机等待点。各机独立并行入场、覆盖及返航；交叉航段自动局部避让，无冲突航线继续执行；航段完成率不等于真实相机覆盖率。</p>
       </PanelShell>
     </aside>
     <PanelShell icon={Route} title="完整任务航线预览" className={styles.mapPanel} action={<span>{deliveryLabels[status]}</span>}>

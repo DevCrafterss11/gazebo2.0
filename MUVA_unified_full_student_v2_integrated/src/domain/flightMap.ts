@@ -20,7 +20,7 @@ export const initialFlightMapView = (
   home: MapCoordinates,
   saved: FlightMapView | null,
   center: MapCoordinates = home,
-  zoom = 17.2,
+  zoom = 18,
 ): FlightMapView => validFlightMapView(saved) && saved.contextId === contextId
   ? saved
   : { contextId, center: { latitude: center.latitude, longitude: center.longitude }, zoom };

@@ -267,7 +267,7 @@ export function FlightSceneViewport({
     const initialView = mountedContext ? initialFlightMapView(mountedContext.contextId, mountedContext.configuredHome,
       lastMapViewRef.current?.contextId === mountedContext.contextId ? lastMapViewRef.current : mountedContext.savedView,
       mountedContext.sceneCenter ?? mountedContext.configuredHome,
-      mountedContext.initialZoom ?? 17.2) : null;
+      mountedContext.initialZoom ?? 18) : null;
     const recordView = () => {
       if (!map || !mountedContext) return;
       const center = map.getCenter().wrap();
@@ -605,7 +605,7 @@ export function FlightSceneViewport({
           <button type="button" title="缩小地图" aria-label="缩小地图" onClick={() => mapRef.current?.zoomOut()}><Minus size={16} /></button>
         </div>
       ) : null}
-      {routePlanner?.visible && routePlanner.showToolbar !== false && !mapFailed ? (
+      {routePlanner?.visible && routePlanner.showToolbar !== false ? (
         <div className={styles.routePlannerToolbar}>
           <div className={styles.routePlannerIdentity}>
             <RouteIcon size={17} />

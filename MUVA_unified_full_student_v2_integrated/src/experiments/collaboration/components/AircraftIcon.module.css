@@ -1,0 +1,5 @@
+.attitude { position: relative; display: block; width: 30px; height: 30px; transform-style: preserve-3d; transition: transform 200ms linear; }
+.nose { position: absolute; left: 12px; top: -5px; width: 0; height: 0; border: 3px solid transparent; border-bottom: 5px solid currentColor; }
+.rotating { transform-box: fill-box; transform-origin: center; animation: propeller 700ms linear infinite; }
+@keyframes propeller { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .attitude { transition: none; } .rotating { animation: none; } }

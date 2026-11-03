@@ -16,6 +16,7 @@ import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { BasicFlightPage } from '../pages/experiments/basic-flight/BasicFlightPage';
 import { CustomSecurityExperimentPage } from '../pages/experiments/custom-security/CustomSecurityExperimentPage';
 import { SecurityExperimentPage } from '../pages/experiments/security/SecurityExperimentPage';
+import { LegacySecurityRangePage } from '../pages/experiments/security/LegacySecurityRangePage';
 import { SwarmExperimentPage } from '../pages/experiments/swarm/SwarmExperimentPage';
 import { SwarmRecordPage } from '../pages/experiments/swarm/SwarmRecordPage';
 import { ExperimentsPage } from '../pages/experiments/ExperimentsPage';
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
           { path: 'experiments/mission', element: studentOnly(<Navigate to="/experiments/collaboration" replace />) },
           { path: 'records/assessment/:id', element: studentOnly(<AssessmentRecordPage />) },
           { path: 'experiments/security', element: studentOnly(<SecurityExperimentPage />) },
+          { path: 'experiments/security/range', element: studentOnly(<LegacySecurityRangePage />) },
           { path: 'experiments/custom-security', element: studentOnly(<CustomSecurityExperimentPage />) },
           { path: 'flight', element: teacherOrStudent(<FlightPage />) },
           { path: 'records', element: studentOnly(<RecordsPage />) },

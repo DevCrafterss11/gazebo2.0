@@ -1,33 +1,44 @@
-import { ArrowRight, BookOpenCheck, CalendarDays, Plus, Users } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, CalendarDays, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { teacherApi } from '../../services/teacherApi';
+import type { AdminCourse } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
-const courses = [
-  { title: '无人机飞行控制', className: '软件工程 1 班', students: 42, experiments: 8, completion: '83%', score: '86.4' },
-  { title: '无人机飞行控制', className: '软件工程 2 班', students: 40, experiments: 8, completion: '79%', score: '84.7' },
-  { title: '无人机任务规划', className: '人工智能 1 班', students: 44, experiments: 6, completion: '68%', score: '82.9' },
-];
-
 export function TeacherCoursesPage() {
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    void teacherApi.listCourses().then((result) => {
+      if (active) setCourses(result.items);
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : '课程加载失败');
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
   return (
     <div className={styles.rolePage}>
       <section className={styles.hero}>
-        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><BookOpenCheck size={14} /> COURSE MANAGEMENT</span><h1>我的课程</h1><p>管理本学期授课班级、实验内容、学生与成绩数据。</p></div>
-        <div className={styles.heroAction}><button className={styles.primaryButton} type="button"><Plus size={14} />创建课程</button><span>当前 3 个教学班</span></div>
+        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><BookOpenCheck size={14} /> COURSE MANAGEMENT</span><h1>我的课程</h1><p>展示当前账号负责的课程与班级；课程分配由管理员管理。</p></div>
+        <div className={styles.heroAction}><span>当前 {courses.length} 个教学班</span></div>
       </section>
+      {loading && <p role="status">正在加载课程…</p>}
+      {error && <p role="alert">{error}</p>}
+      {!loading && !error && courses.length === 0 && <p>暂无分配的课程，请联系管理员。</p>}
       <div className={styles.cardGrid}>
         {courses.map((course) => (
-          <article className={styles.courseCard} key={`${course.title}-${course.className}`}>
+          <article className={styles.courseCard} key={course.id}>
             <div className={styles.cardIcon}><BookOpenCheck size={21} /></div>
-            <h2>{course.title}</h2><p>{course.className} · 2026 秋季学期</p>
+            <h2>{course.name}</h2><p>{course.className} · {course.semester}</p>
             <div className={styles.cardStats}>
-              <span><Users size={12} />学生<strong>{course.students}</strong></span>
-              <span><CalendarDays size={12} />实验<strong>{course.experiments}</strong></span>
-              <span>平均成绩<strong>{course.score}</strong></span>
+              <span><Users size={12} />学生<strong>{course.studentCount}</strong></span>
+              <span><CalendarDays size={12} />实验<strong>{course.experimentCount}</strong></span>
+              <span>状态<strong>{course.status}</strong></span>
             </div>
-            <div className={styles.progressRow}><div className={styles.progressLabel}><span>课程实验完成率</span><strong>{course.completion}</strong></div><div className={styles.progressTrack}><i style={{ width: course.completion }} /></div></div>
-            <div className={styles.cardFooter}><span>最近更新：今天 13:48</span><Link to="/teacher/experiments">进入课程 <ArrowRight size={12} /></Link></div>
+            <div className={styles.cardFooter}><span>编号：{course.code}</span><Link to="/teacher/experiments">查看实验 <ArrowRight size={12} /></Link></div>
           </article>
         ))}
       </div>

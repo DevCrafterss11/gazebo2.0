@@ -41,3 +41,9 @@ eeprom.bin
 .idea/
 *.swp
 *~
+
+# Local editing snapshots and generated screenshot audit runs
+**/.backups/
+/MUVA_unified_full_student_v2_integrated/docs/ui-verification/
+/dumpcore.sh_*.out
+/dumpstack.sh_*.out

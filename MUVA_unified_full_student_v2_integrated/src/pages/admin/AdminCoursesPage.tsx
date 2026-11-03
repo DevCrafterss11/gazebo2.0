@@ -2,7 +2,7 @@ import { BookOpenCheck, Pencil, Plus, Search, UserPlus, Users } from 'lucide-rea
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import { Modal } from '../../components/common/Modal/Modal';
-import { adminApi } from '../../services/adminApi';
+import { adminApi, adminPresentation } from '../../services/adminApi';
 import type { AdminCourse, AdminUser, CourseStatus, CreateAdminCourseInput } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
@@ -122,7 +122,8 @@ export function AdminCoursesPage() {
   const saveMembers = async () => {
     if (!memberCourse) return;
     try {
-      await adminApi.updateCourseMembers(memberCourse.id, selectedMembers);
+      const saved = await adminApi.updateCourseMembers(memberCourse.id, selectedMembers);
+      setCourses((items) => items.map((item) => item.id === memberCourse.id ? { ...item, studentCount: saved.length } : item));
       setMemberCourse(null);
       setError('');
     } catch (memberError) {
@@ -139,7 +140,7 @@ export function AdminCoursesPage() {
 
       <section className={`${styles.panel} ${styles.adminSummaryPanel}`}>
         <div className={styles.miniSummaryGrid}>
-          <div><span>演示课程</span><strong>{totals.courses}</strong><small>后端接入后显示平台总数</small></div>
+          <div><span>{adminPresentation.allowPasswordReset ? '平台课程' : '演示课程'}</span><strong>{totals.courses}</strong><small>{adminPresentation.allowPasswordReset ? '当前数据库中的课程' : '仅前端演示课程'}</small></div>
           <div><span>进行中</span><strong>{totals.running}</strong><small>当前学期已开课课程</small></div>
           <div><span>教学班人数</span><strong>{totals.students}</strong><small>仅汇总数量，不展示实验详情</small></div>
           <div><span>实验配置</span><strong>{totals.experiments}</strong><small>管理员可进入实验管理修改定义</small></div>
@@ -187,23 +188,23 @@ export function AdminCoursesPage() {
               <label>学期<input name="semester" defaultValue="2026 秋季学期" /></label>
               <label>课程状态<select name="status" defaultValue="未开始"><option>未开始</option><option>进行中</option><option>已结束</option></select></label>
             </div>
-            <div className={styles.formHint}>预留接口：POST /api/admin/courses。学生名单后续可通过班级关联或批量导入接口补充。</div>
+            <div className={styles.formHint}>创建后可在课程列表中维护选课学生；教师随后可创建实验定义。</div>
             <div className={styles.formActions}><button className={styles.ghostButton} type="button" onClick={() => setCreating(false)}>取消</button><button className={styles.primaryButton} type="submit">创建课程</button></div>
           </form>
         </Modal>
       ) : null}
 
       {memberCourse ? (
-        <Modal title={`课程成员 · ${memberCourse.name}`} description={`${memberCourse.className} · 正式后端可分页加载整班学生，当前仅展示演示账号。`} onClose={() => setMemberCourse(null)} width="regular">
+        <Modal title={`课程成员 · ${memberCourse.name}`} description={`${memberCourse.className} · 选择已创建的学生账号加入此课程。`} onClose={() => setMemberCourse(null)} width="regular">
           <div className={styles.memberPicker}>
-            <div className={styles.memberPickerHeader}><span>选择加入课程的学生账号</span><strong>{selectedMembers.length} 个演示账号已选择</strong></div>
+            <div className={styles.memberPickerHeader}><span>选择加入课程的学生账号</span><strong>{selectedMembers.length} 个学生账号已选择</strong></div>
             <div className={styles.memberList}>
               {students.map((student) => {
                 const checked = selectedMembers.includes(student.id);
                 return <label key={student.id}><input type="checkbox" checked={checked} onChange={() => setSelectedMembers((current) => checked ? current.filter((id) => id !== student.id) : [...current, student.id])} /><span className={styles.avatar}>{student.name.slice(0, 1)}</span><span><strong>{student.name}</strong><small>{student.username} · {student.organization}</small></span></label>;
               })}
             </div>
-            <div className={styles.formHint}>预留接口：GET / PUT /api/admin/courses/{memberCourse.id}/students。管理员只管理选课关系，不读取这些学生的实验记录。</div>
+            <div className={styles.formHint}>管理员只管理选课关系，不读取学生个人实验记录。</div>
             <div className={styles.formActions}><button className={styles.ghostButton} type="button" onClick={() => setMemberCourse(null)}>取消</button><button className={styles.primaryButton} type="button" onClick={() => void saveMembers()}>保存成员</button></div>
           </div>
         </Modal>

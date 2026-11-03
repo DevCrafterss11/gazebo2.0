@@ -14,6 +14,14 @@ function createHttpClient(baseURL: string) {
     headers: { 'Content-Type': 'application/json' },
   });
 
+  client.interceptors.request.use((config) => {
+    if (import.meta.env.VITE_AUTH_DATA_SOURCE === 'api') {
+      const token = sessionStorage.getItem('muva-auth-token');
+      if (token) config.headers.set('Authorization', `Bearer ${token}`);
+    }
+    return config;
+  });
+
   client.interceptors.response.use(
     (response) => response,
     (error: unknown) => {

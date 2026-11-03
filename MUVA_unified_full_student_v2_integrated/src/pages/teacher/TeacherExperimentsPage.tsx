@@ -1,43 +1,94 @@
-import { Beaker, Copy, FilePenLine, Plus, Rocket, SlidersHorizontal } from 'lucide-react';
-
+import { Beaker, FilePenLine, Plus, Rocket } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Modal } from '../../components/common/Modal/Modal';
+import { teacherApi } from '../../services/teacherApi';
+import { teachingExperimentApi, type TeachingExperiment } from '../../services/teachingExperimentApi';
+import type { AdminCourse } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
-const experiments = [
-  ['基础飞行控制实验', '基础实验', '已结束', '42 / 42', '91.2'],
-  ['航点任务规划实验', '任务实验', '进行中', '35 / 42', '87.5'],
-  ['PID 参数调节实验', '控制实验', '已发布', '0 / 42', '--'],
-  ['GPS 故障处理实验', '故障实验', '草稿', '--', '--'],
-];
-
 export function TeacherExperimentsPage() {
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [experiments, setExperiments] = useState<TeachingExperiment[]>([]);
+  const [editing, setEditing] = useState<TeachingExperiment | 'new' | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([teacherApi.listCourses(), teachingExperimentApi.listMine()]).then(([c, e]) => {
+      if (active) { setCourses(c.items); setExperiments(e.items); }
+    }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : '实验数据加载失败'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editing) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') ?? '').trim();
+    const description = String(form.get('description') ?? '').trim();
+    const maxAltitude = Number(form.get('maxAltitude'));
+    const duration = Number(form.get('duration'));
+    if (!name || !Number.isInteger(maxAltitude) || !Number.isInteger(duration) || maxAltitude < 2 || maxAltitude > 120 || duration < 5 || duration > 240) {
+      setError('请填写实验名称、2–120 米高度及 5–240 分钟时长。'); return;
+    }
+    setBusy(true);
+    try {
+      if (editing === 'new') {
+        const created = await teachingExperimentApi.create({ courseId: String(form.get('courseId')), name, description, maxAltitude, duration });
+        setExperiments((items) => [created, ...items]);
+      } else {
+        const updated = await teachingExperimentApi.update(editing.id, { name, description, maxAltitude, duration });
+        setExperiments((items) => items.map((item) => item.id === updated.id ? updated : item));
+      }
+      setEditing(null); setError('');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '保存失败'); }
+    finally { setBusy(false); }
+  };
+  const advance = async (item: TeachingExperiment) => {
+    setBusy(true);
+    try {
+      const updated = await teachingExperimentApi.update(item.id, { status: item.status === '草稿' ? '已发布' : '已结束' });
+      setExperiments((items) => items.map((entry) => entry.id === updated.id ? updated : entry));
+      setError('');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '状态更新失败'); }
+    finally { setBusy(false); }
+  };
   return (
     <div className={styles.rolePage}>
       <section className={styles.hero}>
-        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><Beaker size={14} /> EXPERIMENT DESIGN</span><h1>实验管理</h1><p>创建实验、配置仿真环境与学生操作权限，并控制实验发布节奏。</p></div>
-        <div className={styles.heroAction}><button className={styles.primaryButton} type="button"><Plus size={14} />创建实验</button><span>支持草稿、发布、进行中、已结束</span></div>
+        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><Beaker size={14} /> EXPERIMENT DESIGN</span><h1>实验管理</h1><p>为本人课程创建实验定义，保存草稿后发布；定义不等于学生已完成的实验记录。</p></div>
+        <div className={styles.heroAction}><button className={styles.primaryButton} type="button" disabled={!courses.length || busy} onClick={() => { setEditing('new'); setError(''); }}><Plus size={14} />创建实验</button><span>草稿 → 已发布 → 已结束</span></div>
       </section>
-      <div className={styles.toolbar}>
-        <div className={styles.filters}><select className={styles.filter} defaultValue="无人机飞行控制"><option>无人机飞行控制</option><option>无人机任务规划</option></select><select className={styles.filter} defaultValue="全部状态"><option>全部状态</option><option>草稿</option><option>已发布</option><option>进行中</option><option>已结束</option></select><input className={styles.search} placeholder="搜索实验名称" /></div>
-        <button className={styles.ghostButton} type="button"><Copy size={13} />实验模板</button>
-      </div>
+      {error && <div className={styles.pageMessage} role="alert">{error}</div>}
       <section className={styles.panel}>
-        <div className={styles.panelHeader}><div className={styles.panelTitle}><SlidersHorizontal size={18} />实验列表</div><span className={styles.panelSubtle}>无人机飞行控制 · 软件工程 1 班</span></div>
+        <div className={styles.panelHeader}><div className={styles.panelTitle}><Beaker size={18} />我的实验定义</div><span className={styles.panelSubtle}>{experiments.length} 项 · 仅本人课程</span></div>
         <div className={styles.dataTable}>
-          <div className={`${styles.tableHead} ${styles.experiments}`}><span>实验名称</span><span>类型</span><span>状态</span><span>完成情况</span><span>平均成绩</span><span>操作</span></div>
-          {experiments.map(([name, type, state, completion, score]) => {
-            const stateClass = state === '已结束' ? styles.success : state === '进行中' ? styles.warning : '';
-            return <div className={`${styles.tableRow} ${styles.experiments}`} key={name}>
-              <div className={styles.studentIdentity}><div className={styles.cardIcon}><Rocket size={16} /></div><div className={styles.identityCopy}><strong>{name}</strong><span>实验环境：Iris + ArduPilot</span></div></div>
-              <span>{type}</span><span className={`${styles.statusPill} ${stateClass}`}>{state}</span><strong>{completion}</strong><span className={styles.score}>{score}</span><button className={styles.ghostButton} type="button"><FilePenLine size={12} />管理</button>
-            </div>;
-          })}
+          <div className={`${styles.tableHead} ${styles.experiments}`}><span>实验名称</span><span>所属课程</span><span>状态</span><span>版本</span><span>安全上限</span><span>操作</span></div>
+          {loading ? <div className={styles.emptyHint}>正在加载实验…</div> : experiments.map((item) => (
+            <div className={`${styles.tableRow} ${styles.experiments}`} key={item.id}>
+              <strong>{item.name}</strong><span>{item.courseName}</span><span className={styles.statusPill}>{item.status}</span><span>V{item.version}</span><span>{item.maxAltitude} m / {item.duration} min</span>
+              <div className={styles.rowActions}>
+                {item.status !== '已结束' && <button className={styles.ghostButton} type="button" disabled={busy} onClick={() => setEditing(item)}><FilePenLine size={12} />编辑</button>}
+                {item.status !== '已结束' && <button className={styles.primaryButton} type="button" disabled={busy} onClick={() => void advance(item)}><Rocket size={12} />{item.status === '草稿' ? '发布' : '结束'}</button>}
+              </div>
+            </div>
+          ))}
+          {!loading && experiments.length === 0 && <div className={styles.emptyHint}>暂无实验定义；先分配课程，再创建实验。</div>}
         </div>
       </section>
-      <div className={styles.threeColumn} style={{ marginTop: 12 }}>
-        <section className={styles.panel}><div className={styles.panelHeader}><div className={styles.panelTitle}>① 基本信息</div></div><p className={styles.panelSubtle}>实验名称、教学目标、建议时长、实验说明。</p></section>
-        <section className={styles.panel}><div className={styles.panelHeader}><div className={styles.panelTitle}>② 仿真配置</div></div><p className={styles.panelSubtle}>无人机型号、Gazebo 场景、初始位置、环境参数。</p></section>
-        <section className={styles.panel}><div className={styles.panelHeader}><div className={styles.panelTitle}>③ 权限与评分</div></div><p className={styles.panelSubtle}>控制学生允许操作、最大高度、实验时长与自动评分规则。</p></section>
-      </div>
+      {editing && <Modal title={editing === 'new' ? '创建实验草稿' : `编辑 · ${editing.name}`} description="实验定义会保存到当前数据源；发布仅改变定义状态，不会自动启动无人机或产生学生成绩。" onClose={() => setEditing(null)}>
+        <form className={styles.adminForm} onSubmit={(event) => void save(event)}>
+          <div className={styles.formGrid}>
+            {editing === 'new' ? <label>所属课程<select name="courseId" required>{courses.map((course) => <option value={course.id} key={course.id}>{course.name} · {course.className}</option>)}</select></label> : <label>所属课程<input value={editing.courseName} disabled /></label>}
+            <label>实验名称<input name="name" required maxLength={120} defaultValue={editing === 'new' ? '' : editing.name} /></label>
+            <label>高度上限（米）<input name="maxAltitude" type="number" min={2} max={120} required defaultValue={editing === 'new' ? 20 : editing.maxAltitude} /></label>
+            <label>计划时长（分钟）<input name="duration" type="number" min={5} max={240} required defaultValue={editing === 'new' ? 30 : editing.duration} /></label>
+            <label className={styles.formSpanTwo}>教学说明<input name="description" maxLength={2000} defaultValue={editing === 'new' ? '' : editing.description} /></label>
+          </div>
+          <div className={styles.formActions}><button className={styles.ghostButton} type="button" onClick={() => setEditing(null)}>取消</button><button className={styles.primaryButton} disabled={busy} type="submit">{busy ? '保存中…' : '保存定义'}</button></div>
+        </form>
+      </Modal>}
     </div>
   );
 }

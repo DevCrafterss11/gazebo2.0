@@ -1,0 +1,63 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || 'playwright-core');
+const out = process.env.MUVA_SCREENSHOT_DIR || 'docs/ui-verification/collaboration/step5-entry-2026-10-31';
+fs.mkdirSync(out, { recursive: true });
+(async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
+  const base = process.env.MUVA_TEST_URL || 'http://127.0.0.1:5175';
+  const shot = name => page.screenshot({ path: `${out}/${name}.png`, fullPage: true });
+  try {
+    await page.goto(`${base}/login`);
+    await page.evaluate(() => { sessionStorage.setItem('muva-mock-user', 'signed-in'); sessionStorage.setItem('muva-user-role', 'student'); });
+    await page.goto(`${base}/experiments/collaboration`);
+    await page.getByRole('button', { name: /进入教学模拟模式/ }).click();
+    const nav = label => page.getByRole('navigation', { name: '实验三六步教学流程' }).getByRole('button', { name: new RegExp(label) }).click();
+    await nav('集群启动'); await page.getByRole('button', { name: '启动集群', exact: true }).click();
+    await page.getByText('模拟待命', { exact: false }).first().waitFor({ timeout: 10000 }).catch(() => {});
+    await nav('多任务协同指挥');
+    const entry = page.getByRole('region', { name: '多任务协同教学入口' });
+    await entry.waitFor();
+    assert.equal(await page.getByTestId('fleet-map').count(), 0, 'teaching entry never renders a reduced map');
+    assert.equal(await entry.locator('article').count(), 5);
+    await shot('01-entry-desktop');
+    await entry.getByRole('button', { name: '进入物资运输指挥台' }).click();
+    const dialog = page.getByRole('dialog', { name: '独立任务全屏工作区' });
+    await dialog.waitFor();
+    await dialog.getByTestId('fleet-map').waitFor();
+    assert.equal(await dialog.getByRole('navigation', { name: '任务业务导航' }).getByRole('button', { name: '物资运输', exact: true }).getAttribute('aria-pressed'), 'true');
+    const panel = dialog.getByRole('complementary', { name: '五类独立任务入口' });
+    const toggle = dialog.getByRole('button', { name: /收起任务面板|展开任务面板/ });
+    assert.equal(await panel.count(), 1);
+    await toggle.click(); assert.equal(await panel.count(), 0);
+    await toggle.click(); assert.equal(await panel.count(), 1);
+    const closeLayer = dialog.getByRole('button', { name: '关闭地图图层' }); if (await closeLayer.count()) await closeLayer.click();
+    const hud = dialog.locator('[data-map-hud]');
+    const map = dialog.getByTestId('fleet-map');
+    const hudBox = await hud.boundingBox(), mapBox = await map.boundingBox();
+    assert.ok(hudBox.width < mapBox.width * .6, `HUD should be compact: ${hudBox.width} vs ${mapBox.width}`);
+    await shot('02-command-desktop');
+    await dialog.getByRole('button', { name: '返回教学页面' }).click();
+    await entry.waitFor(); assert.equal(await dialog.count(), 0);
+    assert.equal(await page.getByTestId('fleet-map').count(), 0);
+    await entry.getByRole('button', { name: '展开指挥台' }).click();
+    await dialog.waitFor(); assert.equal(await dialog.getByTestId('fleet-map').count(), 1);
+    await dialog.getByRole('button', { name: '返回教学页面' }).click();
+    for (const [w, h] of [[1366, 768], [390, 844]]) {
+      await page.setViewportSize({ width: w, height: h });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `entry horizontal overflow at ${w}`);
+      await shot(`03-entry-${w}`);
+      await entry.getByRole('button', { name: '展开指挥台' }).click();
+      await dialog.waitFor();
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), `command horizontal overflow at ${w}`);
+      await shot(`04-command-${w}`);
+      await dialog.getByRole('button', { name: '返回教学页面' }).click();
+    }
+    assert.deepEqual(errors, []);
+    console.log('Step 5 entry/full-screen separation, task panel, HUD and responsive roundtrip passed.');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

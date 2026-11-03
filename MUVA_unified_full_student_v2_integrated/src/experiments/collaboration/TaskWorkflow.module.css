@@ -1,0 +1,77 @@
+.workflow { display:grid; gap:18px; color:#dfedf3; }
+.intro > span,.deployment header small { color:#78c8dc; font-size:10px; letter-spacing:1.3px; }
+.intro h3 { margin:7px 0; font-size:18px; }
+.intro p,.planSummary p,.examples p,.queue p { color:#abc1ce; font-size:12px; line-height:1.75; margin:6px 0; }
+.steps { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.steps li { display:flex; align-items:center; gap:10px; font-size:12px; color:#bcd0da; }
+.steps li > span,.deploySteps li > span { width:22px; height:22px; border-radius:50%; background:#173e51; color:#9fc9da; display:grid; place-items:center; flex-shrink:0; font-size:11px; }
+.steps li[data-complete=true] > span,.deploySteps li[data-complete=true] > span { background:#1a5a5e; color:#8be1cb; }
+.shortcuts,.coordinateOptions { display:flex; gap:8px; }
+.shortcuts button { flex:1; }
+.field { display:grid; gap:7px; font-size:12px; color:#bdd2dc; }
+.field input,.field select { min-width:0; width:100%; }
+.queue h4,.planSummary h4,.coordinateEntry h4 { display:flex; align-items:center; gap:7px; font-size:13px; margin:0 0 11px; }
+.queue h4 small,.planSummary h4 small { font-size:10px; font-weight:400; margin-left:auto; color:#8eb1c3; }
+.queue article { display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid #315261; }
+.queue article > b { color:#75c8d6; font-size:12px; }
+.queue article > div { flex:1; min-width:0; }
+.queue article strong { font-size:12px; }
+.queue article small,.routeRow small { display:block; color:#a8bdca; font-size:10px; line-height:1.6; margin-top:3px; }
+.queue article button { padding:5px; min-height:26px; }
+.planSummary { border-top:1px solid #355263; padding-top:14px; }
+.planMetrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+.planMetrics > span { font-size:20px; font-weight:600; color:#d5f3fa; }
+.planMetrics small { display:block; font-size:10px; color:#9eb9c6; margin-top:5px; font-weight:400; }
+.routeRow { display:flex; gap:9px; align-items:center; width:100%; text-align:left; margin:5px 0; padding:9px!important; background:#113747!important; border-color:transparent!important; }
+.routeRow i { width:5px; height:24px; border-radius:3px; flex-shrink:0; }
+.routeRow b { font-size:12px; }
+.caution { display:block; font-size:11px!important; line-height:1.7; color:#c5b798!important; margin:9px 0 0; }
+.examples { border-top:1px solid #355263; padding-top:13px; }
+.examples summary { cursor:pointer; color:#a8cddc; font-size:12px; }
+.examples .field { margin-top:12px; }
+.coordinateEntry { border-bottom:1px solid #355263; padding-bottom:16px; margin-bottom:16px; display:grid; gap:10px; }
+.coordinateOptions > * { min-width:0; flex:1; }
+.coordinateOptions label { display:grid; gap:6px; font-size:11px; color:#a9c2cf; }
+.coordinateEntry p { color:#f0ba97; font-size:12px; }
+.deploymentBackdrop { position:fixed; inset:0; border:0; padding:24px; margin:0; width:100vw; max-width:none; height:100dvh; max-height:none; background:#03131fd4; backdrop-filter:blur(5px); color:#e0edf3; }
+.deploymentBackdrop[open] { display:grid; place-items:center; }
+.deploymentBackdrop::backdrop { background:#02101e70; }
+.deployment { width:min(880px,100%); max-height:calc(100dvh - 48px); overflow:auto; box-sizing:border-box; background:#0c283b; border:1px solid #3c6379; border-radius:12px; box-shadow:0 24px 80px #0007; padding:26px; }
+.deployment button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:35px; padding:7px 13px; border:1px solid #406174; border-radius:6px; background:#15374b; color:#d9eaf2; cursor:pointer; font:inherit; font-size:12px; }
+.deployment button:disabled { opacity:.4; cursor:not-allowed; }
+.deployment header { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.deployment header h2 { font-size:20px; margin:7px 0 0; }
+.deployment header > button { background:transparent; border:0; }
+.deploySteps { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:16px 0; list-style:none; margin:15px 0 0; border-block:1px solid #2e4c60; }
+.deploySteps li { display:flex; align-items:center; gap:8px; font-size:12px; color:#a9bfce; }
+.deploySteps li[data-active=true] { color:#85dcf0; }
+.deploySteps li[data-active=true] > span { background:#236682; color:white; }
+.safety { font-size:12px; line-height:1.7; color:#acc6d6; }
+.deployMeta { display:flex; flex-wrap:wrap; gap:12px 24px; padding:10px 0; font-size:11px; color:#9eb8cb; }
+.deployMeta b { color:#d6e8f1; font-weight:500; }
+.tableWrap { overflow-x:auto; border:1px solid #355269; border-radius:7px; margin:12px 0; }
+.tableWrap table { border-collapse:collapse; width:100%; font-size:12px; min-width:550px; }
+.tableWrap th { text-align:left; font-weight:500; color:#97bbcf; background:#133449; padding:11px; }
+.tableWrap td { border-top:1px solid #2d4b5e; padding:12px 11px; max-width:240px; line-height:1.6; }
+.tableWrap small { display:block; color:#93adbe; font-size:11px; }
+.tableWrap [data-rejected=true] { color:#f6ad9e; }
+.consent { display:flex; align-items:flex-start; gap:8px; font-size:12px; line-height:1.8; margin:14px 0; color:#b6cbd8; }
+.consent input { margin-top:5px; accent-color:#48c4dc; }
+.deployNotice { padding:10px 13px; font-size:12px; line-height:1.7; color:#b8e4ed; border-left:3px solid #4db0c7; background:#143b4e; }
+.deployment footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; margin-top:22px; }
+.deployment .primary { background:#167293; border-color:#318aa5; color:white; }
+@media(max-width:760px) { .deploymentBackdrop{padding:12px;} .deployment{padding:17px;max-height:calc(100dvh - 24px);} .deploySteps{gap:6px;} .deploySteps li{flex-direction:column;font-size:10px;} }
+
+/* Three planning shortcuts must not squeeze into three narrow columns. */
+.shortcuts { flex-wrap: wrap; }
+.shortcuts button { flex: 1 1 130px; min-width: 0; }
+
+.flowNote { padding:12px 14px; border-radius:9px; background:#103646; border-left:3px solid #51b9c6; color:#ddf2f4; font-size:12px; }
+.flowNote p { margin:6px 0; color:#b3cad3; line-height:1.65; }
+.flowNote button { margin-top:7px; }
+.pointStatus { display:flex; flex-wrap:wrap; gap:5px 12px; color:#9de1dc; font-size:11px; }
+.queueTotals { color:#9de1dc; font-size:11px; margin:8px 0 0; }
+
+/* Area reset is a secondary, contextual action beside drawing; it never competes with the map. */
+.shortcuts button.clearAreaAction { flex: 0 1 auto; border-color: #466570; background: #193744; color: #bbd2d7; }
+.shortcuts button.clearAreaAction:disabled { opacity: .45; }

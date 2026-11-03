@@ -109,3 +109,70 @@ def shortest_route(first: list[float], second: list[float], boxes: list[list[flo
                 parents[index] = current
                 heapq.heappush(queue, (candidate, index))
     raise CommandRejectedError("无法在禁飞缓冲和机间安全间距下返航；保持悬停，请调整任务")
+
+
+def plan_parallel_routes(paths: list[list[list[float]]], clearance: float, speed: float,
+                         landing_seconds: float) -> dict:
+    """Reserve next segments, yielding only crossing traffic, with no fleet-wide barrier."""
+    from itertools import permutations
+
+    if not paths or any(not path for path in paths) or not math.isfinite(speed) or speed <= 0:
+        raise CommandRejectedError("并行调度缺少有效航线或速度")
+    original = tuple(range(len(paths)))
+    if any(math.dist(paths[index][0], paths[other][0]) < clearance - .01
+           for index in original for other in range(index + 1, len(paths))):
+        raise CommandRejectedError("服务起降点不足安全间距，请重新初始化机群")
+
+    def simulate(order: tuple[int, ...]) -> dict | None:
+        positions = [path[0] for path in paths]
+        cursors = [1 for _ in paths]
+        active: dict[int, tuple[list[list[float]], float, float]] = {}
+        landing: dict[int, float] = {}
+        landed: set[int] = set()
+        waits = [0.0 for _ in paths]
+        at, maximum = 0.0, 0
+        for _ in range(sum(len(path) for path in paths) * 3 + len(paths)):
+            for index, (segment, start, end) in list(active.items()):
+                ratio = min(1, (at - start) / (end - start))
+                positions[index] = [segment[0][axis] + ratio * (segment[1][axis] - segment[0][axis]) for axis in (0, 1)]
+                if end <= at + 1e-8:
+                    positions[index] = segment[1]
+                    cursors[index] += 1
+                    del active[index]
+            for index, end in list(landing.items()):
+                if end <= at + 1e-8:
+                    landed.add(index)
+                    del landing[index]
+            for index in order:
+                if index in landed or index in active or index in landing:
+                    continue
+                while cursors[index] < len(paths[index]) and math.dist(positions[index], paths[index][cursors[index]]) < 1e-8:
+                    cursors[index] += 1
+                if cursors[index] >= len(paths[index]):
+                    landing[index] = at + max(.01, landing_seconds)
+                    continue
+                segment = [positions[index], paths[index][cursors[index]]]
+                if any(segment_distance(segment, [position, position]) < clearance - .01
+                       for other, position in enumerate(positions) if other != index and other not in landed):
+                    continue
+                if any(segment_distance(segment, reservation[0]) < clearance - .01
+                       for other, reservation in active.items() if other != index):
+                    continue
+                active[index] = (segment, at, at + math.dist(*segment) / speed)
+            maximum = max(maximum, len(active))
+            if len(landed) == len(paths):
+                return {"order": list(order), "duration": at, "waits": waits, "maxConcurrent": maximum}
+            next_at = min([reservation[2] for reservation in active.values()] + list(landing.values()), default=math.inf)
+            if not math.isfinite(next_at):
+                return None
+            for index in original:
+                if index not in landed and index not in landing and index not in active:
+                    waits[index] += next_at - at
+            at = next_at
+        return None
+
+    for order in permutations(original):
+        result = simulate(order)
+        if result:
+            return result
+    raise CommandRejectedError("自动并行避让后仍存在互相占用的等待点，无法安全放行；请重新生成航线以自动重新分配分区")

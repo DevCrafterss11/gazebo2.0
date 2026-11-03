@@ -1,4 +1,5 @@
 import { httpClient } from './http/client';
+import { registerMockAccount, updateMockAccount } from './authApi';
 import type {
   AdminCourse,
   AdminListResult,
@@ -159,6 +160,7 @@ const mockAdminApi: AdminApi = {
       createdAt: nowText(),
     };
     mockUsers = [created, ...mockUsers];
+    registerMockAccount({ id: created.id, username: created.username, password: input.password, displayName: created.name, role: created.role, status: created.status });
     return created;
   },
   async updateUser(id, input) {
@@ -167,6 +169,7 @@ const mockAdminApi: AdminApi = {
     if (!current) throw new Error('用户不存在');
     const updated = { ...current, ...input };
     mockUsers = mockUsers.map((item) => item.id === id ? updated : item);
+    updateMockAccount(updated.username, { displayName: updated.name, role: updated.role, status: updated.status, ...(input.password ? { password: input.password } : {}) });
     return updated;
   },
   async listCourses(query) {
@@ -232,7 +235,7 @@ const mockAdminApi: AdminApi = {
 };
 
 /**
- * 预留的正式后端实现。
+ * 数据库账号/课程/审计实现；仿真资源需单独接入运行时，未接通时明确返回错误。
  * 默认不会启用，只有设置 VITE_ADMIN_DATA_SOURCE=api 时才调用这些接口，
  * 因此不会影响目前已经打通的无人机仿真后端。
  *
@@ -297,5 +300,9 @@ const apiAdminApi: AdminApi = {
     return data;
   },
 };
+
+export const adminPresentation = import.meta.env.VITE_ADMIN_DATA_SOURCE === 'api'
+  ? { resourceIntro: '真实资源控制尚未接入；此页会显示明确的不可用错误，不会伪造在线实例。', resourceNotice: '真实仿真资源控制尚未接入运行时', auditLabel: '数据库审计记录', userHint: '数据库模式：创建后账号可立即用于登录。', allowPasswordReset: true }
+  : { resourceIntro: '演示模式：模拟 Gazebo / SITL 实例，不提供学生实验记录入口。', resourceNotice: '演示模式：操作只作用于前端 Mock 状态', auditLabel: '演示记录', userHint: '演示模式：仅写入前端模拟数据，刷新后重置。', allowPasswordReset: false };
 
 export const adminApi: AdminApi = import.meta.env.VITE_ADMIN_DATA_SOURCE === 'api' ? apiAdminApi : mockAdminApi;

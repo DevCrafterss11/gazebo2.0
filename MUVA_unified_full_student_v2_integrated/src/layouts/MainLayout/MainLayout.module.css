@@ -423,3 +423,24 @@
   .menuItem { height: 46px; }
   .submenu > a { height: 39px; font-size: 12px; }
 }
+
+/* The collaboration workspace stacks its panels on narrow screens; keep the
+   shared shell usable without changing the other experiments' desktop layout. */
+@media (max-width: 850px) {
+  .appShell:has(:global(.collaborationWorkspace)) { --sidebar-width: 0px; }
+  .appShell:has(:global(.collaborationWorkspace)) .sidebar { display: none; }
+  .appShell:has(:global(.collaborationWorkspace)) .topHeader { gap: 8px; padding: 0 10px; }
+  .appShell:has(:global(.collaborationWorkspace)) .brand { gap: 7px; }
+  .appShell:has(:global(.collaborationWorkspace)) .brand > span:last-child { display: none; }
+  .appShell:has(:global(.collaborationWorkspace)) .brand strong { font-size: 24px; }
+  .appShell:has(:global(.collaborationWorkspace)) .headerActions { gap: 4px; }
+  .appShell:has(:global(.collaborationWorkspace)) .runtimeBadge { padding: 7px 9px; font-size: 11px; }
+}
+
+@media (max-width: 480px) {
+  .appShell:has(:global(.collaborationWorkspace)) .headerControl { display: none; }
+  .appShell:has(:global(.collaborationWorkspace)) .runtimeBadge,
+  .appShell:has(:global(.collaborationWorkspace)) .userButton { white-space: nowrap; flex-shrink: 0; }
+  .appShell:has(:global(.collaborationWorkspace)) .brandMark { width: 30px; }
+  .appShell:has(:global(.collaborationWorkspace)) .headerActions { margin-left: auto; }
+}

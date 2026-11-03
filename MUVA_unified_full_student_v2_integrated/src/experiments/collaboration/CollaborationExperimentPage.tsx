@@ -1,42 +1,36 @@
-import { useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Check, CircleHelp, RotateCcw, Timer } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Activity, ArrowLeft, ArrowRight, Battery, Check, Circle, Clock3, RefreshCw, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
 import { useCollaborationStore } from '../../stores/collaborationStore';
-import { CollaborationConfig } from './CollaborationConfig';
-import { CollaborationExecution } from './CollaborationExecution';
-import { DroneGroupConfig } from './DroneGroupConfig';
-import { ExperimentReport } from './ExperimentReport';
-import { FailureSimulation } from './FailureSimulation';
-import { MissionIntroduction } from './MissionIntroduction';
+import { droneAlert, instanceLabels } from '../../domain/collaborationMission';
+import { FleetMap } from './components/FleetMap';
+import { TaskWorkspace } from './TaskWorkspace';
+import { SystemReadiness } from './SystemReadiness';
+import { ClusterStartup } from './ClusterStartup';
+import { CommunicationNetwork } from './CommunicationNetwork';
+import { TaskResult } from './components/TaskResult';
 import styles from './Collaboration.module.css';
-
-const steps = ['实验任务认知', '无人机任务编组', '协同方案配置', '任务执行监控', '异常处理', '实验结果评价'];
-
+const steps = ['系统感知', '集群启动', '通信组网', '集群状态监控', '多任务协同指挥', '实验评价'];
+const formatTime = (v: number) => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
 export function CollaborationExperimentPage() {
-  const currentStep = useCollaborationStore((state) => state.currentStep);
-  const mission = useCollaborationStore((state) => state.missionState);
-  const elapsedSeconds = useCollaborationStore((state) => state.elapsedSeconds);
-  const setStep = useCollaborationStore((state) => state.setStep);
-  const stop = useCollaborationStore((state) => state.stopExecution);
-  const reset = useCollaborationStore((state) => state.reset);
-
-  useEffect(() => () => stop(), [stop]);
-
-  const content = [
-    <MissionIntroduction key="introduction" mission={mission} onTaskSelect={setStepGroup} />,
-    <DroneGroupConfig key="group" mission={mission} />,
-    <CollaborationConfig key="config" mission={mission} />,
-    <CollaborationExecution key="execution" />,
-    <FailureSimulation key="failure" />,
-    <ExperimentReport key="report" />,
-  ][currentStep];
-
-  function setStepGroup(groupId: string) {
-    if (!groupId) return;
-    useCollaborationStore.getState().selectTaskGroup(groupId);
-    setStep(1);
-  }
-
-  return <div className={styles.page}><header className={styles.header}><div className={styles.headerTop}><Link to="/experiments" className={styles.backLink}><ArrowLeft size={15} />实验中心</Link><span className={styles.mockBadge}>● MOCK · 教学模拟 / 不连接真实飞控</span><div className={styles.headerActions}><span><Timer size={14} />{String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:{String(elapsedSeconds % 60).padStart(2, '0')}</span><button type="button" onClick={() => { if (window.confirm('确定重新开始实验？当前配置与模拟状态会清空。')) reset(); }}><RotateCcw size={14} />重新开始</button></div></div><div className={styles.titleRow}><div><span className={styles.kicker}>实验三 · 任务协同</span><h1>多无人机任务协同实验</h1><p>通过任务编组、角色分工和协同监控，理解无人机群如何完成综合区域巡检任务。</p></div><div className={styles.headerHelp}><CircleHelp size={16} /><span>本科教学 Mock 实验</span></div></div><nav className={styles.stepper} aria-label="实验三流程">{steps.map((step, index) => <button className={`${styles.step} ${index === currentStep ? styles.stepActive : ''} ${index < currentStep ? styles.stepDone : ''}`} key={step} type="button" onClick={() => setStep(index)}><span>{index < currentStep ? <Check size={14} /> : index + 1}</span><b>{step}</b>{index < steps.length - 1 && <i />}</button>)}</nav></header><main className={styles.content}>{content}</main><footer className={styles.footer}><span><b>教学目标：</b>{currentStep === 0 ? '认识综合区域巡检任务及五类协同关系。' : currentStep === 1 ? '为每个任务组配置三架合适的无人机。' : currentStep === 2 ? '比较同步、接力和主辅三种协同模式。' : currentStep === 3 ? '先观察任务组，再展开查看无人机状态。' : currentStep === 4 ? '识别异常影响范围并选择安全处置策略。' : '复盘任务完成率、时间、协同和异常处理表现。'}</span><div><button type="button" disabled={currentStep === 0} onClick={() => setStep(currentStep - 1)}><ArrowLeft size={15} />上一步</button>{currentStep < 5 && <button className={styles.primaryButton} type="button" onClick={() => setStep(currentStep + 1)}>完成本阶段，进入下一步<ArrowRight size={15} /></button>}</div></footer></div>;
+  const state = useCollaborationStore();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const drones = state.missionState.drones;
+  const selectedDrone = drones.find((d) => d.id === state.selectedDrone) ?? drones[0]!;
+  const go = state.setStep;
+  const compact = state.currentStep < 3;
+  const command = state.currentStep === 4;
+  const canEnter = (step: number) => step === 0 || (step === 1 ? state.simulationEnabled : step === 5 ? state.records.length > 0 : state.clusterRunning);
+  const completedSteps = state.records.length ? 5 : state.clusterRunning ? 3 : state.simulationEnabled ? 1 : 0;
+  useEffect(() => { pageRef.current?.scrollTo({ top: 0, left: 0 }); pageRef.current?.closest('main')?.scrollTo({ top: 0, left: 0 }); }, [state.currentStep]);
+  const nextButton = (label = '完成本阶段，继续') => <button className={styles.primary} type="button" onClick={() => go(state.currentStep + 1)}>{label}<ArrowRight size={16} /></button>;
+  const body = () => {
+    if (state.currentStep === 0) return <SystemReadiness />;
+    if (state.currentStep === 1) return <ClusterStartup />;
+    if (state.currentStep === 2) return <CommunicationNetwork />;
+    if (state.currentStep === 3) return <div className={styles.monitor}><div className={styles.monitorStats} aria-label="集群监控统计">{[['集群', state.stopRequested ? '安全停止中' : state.isRunning ? '模拟任务运行中' : state.clusterRunning ? '模拟待命' : '已停止'], ['在线', `${state.communicationNodes.filter((n) => n.network === '模拟在线').length}/15`], ['异常', String(drones.filter((d) => droneAlert(d)).length)], ['当前任务', String(state.runningTaskGroupIds.length)], ['通信正常', `${state.communicationNodes.filter((n) => n.network === '模拟在线').length}/15`], ['来源', 'Mock 教学模拟']].map(([label, value]) => <div key={label}><small>{label}</small><b>{value}</b></div>)}</div><section className={styles.panel}><header><div><h2>机队资源 <small>15</small></h2><p>选择无人机查看遥测</p></div></header><div className={styles.droneList}>{drones.map((drone) => <button type="button" key={drone.id} className={drone.id === selectedDrone.id ? styles.selectedRow : ''} onClick={() => state.selectDrone(drone.id)}><span className={`${styles.statusDot} ${droneAlert(drone) ? styles.statusDotBad : drone.instanceStatus === 'STOPPED' ? styles.statusDotOffline : drone.armed ? styles.statusDotRunning : ''}`} /><b>{drone.id}</b><small>{droneAlert(drone) || instanceLabels[drone.instanceStatus]}</small><span>{Math.round(drone.battery)}%</span></button>)}</div></section><section className={`${styles.panel} ${styles.monitorMap}`}><header><div><h2>集群态势地图</h2><p>本地仿真坐标 · {drones.length} 个独立飞行单元</p></div><span className={styles.simTag}>MOCK</span></header>{<FleetMap global />}<div className={styles.monitorEvents}><b>集群事件</b>{state.events.slice(-2).reverse().map((event) => <span key={event.id}>{new Date(event.time).toLocaleTimeString('zh-CN')} · {event.title}</span>)}</div></section><section className={styles.panel}><header><div><h2>{selectedDrone.id}</h2><p>四旋翼 · {selectedDrone.raspberryPiIp}</p></div><Battery size={17} />{Math.round(selectedDrone.battery)}%</header><div className={styles.telemetry}>{[['连接', state.communicationNodes.find((n) => n.droneId === selectedDrone.id)?.network ?? '未连接'], ['模式 / 解锁', `${selectedDrone.mode ?? '待命'} / ${selectedDrone.armed ? '已解锁' : '未解锁'}`], ['仿真坐标', `${selectedDrone.position.x.toFixed(1)}, ${selectedDrone.position.y.toFixed(1)}`], ['高度', `${selectedDrone.position.z.toFixed(1)} m`], ['姿态 R/P/Y', `${selectedDrone.attitude?.map((n) => n.toFixed(1)).join('° / ') ?? '0.0° / 0.0° / 0.0°'}`], ['Gazebo / SITL', `${selectedDrone.gazeboStatus} / ${selectedDrone.sitlStatus}`], ['MAVLink', selectedDrone.mavlinkStatus], ['更新时间', new Date(selectedDrone.updatedAt).toLocaleTimeString('zh-CN')]].map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}</div></section></div>;
+    if (state.currentStep === 4) return <TaskWorkspace />;
+    return <section className={styles.panel}><header><div><h2>实验评价 / 独立任务记录</h2><p>由实际运行轨迹、事件与安全收尾记录生成；任务结束不关闭集群。</p></div><span className={styles.simTag}>MOCK · 教学模拟</span></header>{state.records.length ? state.records.slice().reverse().map((record) => <details key={record.id} className={styles.reportRecord} open={record.id === state.records.at(-1)?.id}><summary>{record.name} · {record.evaluation.status} · {new Date(record.startedAt).toLocaleString('zh-CN')}</summary><TaskResult record={record} /><FleetMap locked snapshot={record} /></details>) : <p className={styles.emptyEval}>尚无已安全结束的任务。请在任务工作区独立配置并执行。</p>}<footer><button className={styles.secondary} type="button" onClick={() => go(3)}>查看机队监控</button><button className={styles.primary} type="button" onClick={() => go(4)}>返回当前任务工作区</button></footer></section>;
+  };
+  return <div ref={pageRef} className={`${styles.page} ${state.currentStep === 0 ? styles.readinessPage : state.currentStep === 1 ? styles.startupPage : state.currentStep === 2 ? styles.communicationPage : ''} ${compact ? styles.compactPage : command ? styles.taskEntryPage : ''} collaborationWorkspace`}><header className={styles.header}><div className={styles.topLine}><Link to="/experiments"><ArrowLeft size={15} />实验中心</Link><span className={styles.simTag}><Circle size={9} />MOCK · 教学模拟<span className={styles.sourceDetail}> / 不连接真实飞控</span></span>{state.clusterRunning && state.currentStep >= 3 && <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',marginLeft:'auto',marginRight:'16px'}}><input type="checkbox" checked={state.concurrentMode} onChange={()=>state.toggleConcurrentMode()} disabled={state.isRunning} /><span style={{color:state.concurrentMode?'#22D3EE':'#94A3B8'}}>并发模式{state.concurrentMode?' (实验性)':''}</span></label>}<span className={styles.clock}><Clock3 size={14} />{formatTime(state.elapsedSeconds)}</span><button title="重新开始" onClick={() => { if (state.isRunning || state.clusterStarting || state.stopRequested || state.schedulerState.activeRuns.length || drones.some(d => d.armed || d.instanceStatus === 'RETURNING')) { window.alert('请先终止所有任务并等待无人机安全落地；集群启停过程中不能重置会话。'); return; } if (window.confirm('重新开始将清空当前实验及历史记录。')) state.reset(); }} type="button"><RotateCcw size={15} /></button></div><div className={styles.titleLine}><div>{!compact && !command && <span>实验三 · 集群协同飞行</span>}<h1>多无人机集群任务指挥</h1></div><div className={styles.summary}><b>15<small>无人机</small></b><b>5<small>独立任务类型</small></b><b>{state.concurrentMode?state.getActiveTaskRuns().length:state.isRunning ? 1 : 0}<small>当前执行</small></b></div></div><nav aria-label="实验三六步教学流程">{steps.map((step, i) => <button key={step} className={state.currentStep === i ? styles.navActive : i < completedSteps ? styles.navDone : ''} onClick={() => go(i)} disabled={!canEnter(i)} aria-current={state.currentStep === i ? 'step' : undefined} title={!canEnter(i) ? i === 1 ? '请先选择教学模拟模式' : i === 5 ? '完成任务后查看评价' : '请先启动集群' : undefined} type="button"><span>{i < completedSteps ? <Check size={14} /> : `0${i + 1}`}</span><b>{step}</b></button>)}</nav></header><main className={styles.content}>{body()}</main>{!compact && !command && <footer className={styles.pageFooter}><span><b>教学目标</b> {steps[state.currentStep]} · 统一资源池 / 独立任务 / 单机安全返航</span><div>{state.currentStep > 0 && <button className={styles.secondary} onClick={() => go(state.currentStep - 1)} type="button"><ArrowLeft size={15} />上一步</button>}{state.currentStep === 3 && nextButton('前往任务指挥')}{state.currentStep === 4 && state.records.length > 0 && <button className={styles.primary} onClick={() => go(5)} type="button">查看实验评价<ArrowRight size={15} /></button>}</div></footer>}</div>;
 }

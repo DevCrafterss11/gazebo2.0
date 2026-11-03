@@ -1,0 +1,337 @@
+/* Map-first command surface. Teaching shell and runtime remain unchanged. */
+.station.station { --surface: #082b36f2; --line: #32616c; --accent: #79e3d0; position: relative; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: #112e35; color: var(--color-text-primary); font-size: 14px; }
+.station button, .station input, .station select { font: inherit; }
+.station button { display: inline-flex; justify-content: center; align-items: center; gap: 6px; min-height: 34px; padding: 7px 11px; border: 1px solid #376371; border-radius: var(--radius-sm); background: #113944; color: #dbf2f2; cursor: pointer; }
+.station button:hover:not(:disabled) { border-color: var(--accent); background: #1a4d55; }
+.station button:disabled { opacity: .45; cursor: not-allowed; }
+.station :is(button, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.station select, .station input:not([type=checkbox]) { border: 1px solid #396775; border-radius: 5px; color: #e8f7f7; background: #113943; padding: 8px; min-width: 0; }
+.station input[type=checkbox] { accent-color: #58c6b2; }
+.header { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; background: #072b37; border-bottom: 1px solid var(--line); z-index: 7; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand > svg { color: var(--accent); }
+.brand b { display: block; font-size: 17px; }
+.brand small { display: block; margin-top: 4px; color: #9cbfc6; font-size: 12px; }
+.navigation { display: flex; flex-wrap: wrap; gap: 5px; }
+.navigation button { padding: 8px 10px; border-color: transparent; background: transparent; font-size: 13px; }
+.navigation button[aria-pressed=true] { color: #a8f2df; background: #184b52; border-color: #3f8d8a; }
+.navigation i, .situation i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.headerActions { display: flex; gap: 7px; }
+.headerActions button { font-size: 13px; }
+.stage { position: relative; isolation: isolate; min-height: 760px; flex: 1; overflow: hidden; }
+.mapHost { position: absolute; inset: 0; }
+.mapHost > div { height: 100%; }
+.mapHost [data-testid=fleet-map] { height: 100%; min-height: 0; flex: 1; background-color: #173c3e; }
+
+/* The scene remains full size underneath every layer; opening a panel never resizes it. */
+
+.situation { position: absolute; inset: 12px 14px auto; z-index: 4; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 10px 13px; background: #082c36eb; border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 12px; pointer-events: none; }
+.situation span { display: flex; align-items: center; gap: 7px; }
+.situation i { background: #6ee3b6; }
+.situation b { margin-left: auto; font-weight: 400; color: #9abcc4; }
+.railToggle { position: absolute; top: 65px; left: 14px; z-index: 6; }
+.taskRail { position: absolute; top: 109px; left: 14px; bottom: calc(var(--map-footer-height, 105px) + var(--map-hud-height, 75px) + 44px); width: 240px; z-index: 4; overflow-y: auto; scrollbar-width: thin; padding: 0 2px 8px; }
+.taskRail > header { display: flex; align-items: baseline; justify-content: space-between; padding: 0 1px 10px; }
+.taskRail > header b { color: #e4f6f4; font-size: 15px; }
+.taskRail > header small { color: #a4c3c3; font-size: 11px; }
+.taskRail article { padding: 12px; margin-bottom: 10px; background: var(--surface); backdrop-filter: blur(12px); border: 1px solid #365e65; border-left: 3px solid var(--task-color); border-radius: var(--radius-md); box-shadow: 0 6px 16px #00161940; }
+.taskRail article.activeCard { background: #104049f5; border-color: var(--accent); }
+.taskRail article > div { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.taskRail article > div > svg { color: var(--task-color); }
+.taskRail article b { font-size: 15px; }
+.taskRail article small { display: block; color: #a7c6ca; font-size: 11px; font-weight: 400; margin-top: 4px; }
+.taskRail article span { margin-left: auto; font-size: 11px; color: #b6d3d5; }
+.taskRail article footer { display: flex; gap: 7px; padding-top: 11px; }
+.taskRail article button { flex: 1; font-size: 12px; min-height: 30px; padding: 5px; }
+.station .overview { width: 100%; justify-content: space-between; background: #0b303ce6; }
+.layerDock { position: absolute; right: 68px; top: 64px; display: flex; gap: 5px; z-index: 6; }
+.layerDock button { font-size: 12px; padding: 7px; }
+.layerDock button[aria-pressed=true] { border-color: var(--accent); color: #abf4e0; background: #1b4e53; }
+.layerDock span { display: none; }
+.layer { position: absolute; top: 110px; right: 68px; bottom: calc(var(--map-footer-height, 105px) + var(--map-hud-height, 75px) + 44px); width: 338px; z-index: 5; display: flex; flex-direction: column; background: var(--surface); backdrop-filter: blur(14px); border: 1px solid #56838a; border-radius: var(--radius-md); box-shadow: 0 12px 35px #0005; overflow: hidden; }
+.layer > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.layer > header > div { display: flex; align-items: center; gap: 8px; }
+.layer > header svg { color: var(--accent); }
+.layer > header button { min-height: 28px; padding: 3px; border: 0; background: transparent; }
+.layerContext { padding: 8px 14px; color: #a4d1d1; background: #14424a; font-size: 12px; }
+.layerBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 15px; scrollbar-width: thin; scrollbar-color: #527d82 transparent; }
+.layerBody > p { margin: 0 0 12px; line-height: 1.7; color: #b6d0d4; font-size: 13px; }
+.layerBody label { font-size: 13px; }
+.layerBody > div { max-width: 100%; }
+.layerBody > div > label { min-width: 0; }
+.layerBody :is(input:not([type=checkbox]), select) { width: 100%; font-size: 13px; }
+.layerBody :is(h3) { font-size: 15px; }
+.layerBody > section { padding: 0; }
+.layerBody > section > div { gap: 10px; }
+.layerBody > section > div > b { font-size: 20px; }
+.layerBody > aside { max-height: 520px; border-radius: 6px; }
+.layer > footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 13px; border-top: 1px solid var(--line); }
+.layer > footer button { font-size: 12px; }
+.hint { margin-top: 15px; padding: 12px; font-size: 13px; color: #aed2d2; line-height: 1.75; border: 1px solid #375e68; border-radius: 6px; background: #0b343f; }
+.coordinates article { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.coordinates b { grid-column: 1 / -1; font-size: 13px; }
+.coordinates label { display: flex; gap: 6px; align-items: center; }
+.coordinates article button { grid-column: 2; font-size: 12px; }
+.coordinates + button { margin-top: 15px; }
+.record.record { width: 100%; justify-content: flex-start; flex-wrap: wrap; margin: 10px 0; text-align: left; padding: 12px; }
+.record b, .record small { width: 100%; }
+.record small { color: #98bbc5; }
+.record span { color: var(--accent); }
+.drawingHint { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); z-index: 4; padding: 9px 12px; background: #0b3543ef; border: 1px solid #63b1b5; border-radius: 7px; max-width: min(480px, calc(100% - 30px)); font-size: 13px; line-height: 1.7; }
+.drawingHint button { margin-left: 10px; font-size: 12px; }
+.bottomStack { position: absolute; bottom: 14px; left: 14px; right: 68px; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }
+.bottomStack > * { pointer-events: auto; }
+.notice, .alert { border: 1px solid #477c82; border-radius: 7px; background: #0b3541f5; padding: 9px 12px; font-size: 13px; max-width: 100%; max-height: 100px; overflow-y: auto; }
+.alert { color: #ffe0b2; border-color: #9c7747; }
+.alert button { margin-left: 9px; font-size: 12px; }
+.toolbar { display: flex; width: 100%; align-items: center; gap: 14px; justify-content: space-between; padding: 14px 16px; background: #082d38f5; backdrop-filter: blur(14px); border: 1px solid #527c83; border-radius: var(--radius-md); box-shadow: 0 8px 28px #00151970; }
+.taskStatus { min-width: 140px; max-width: 300px; }
+.taskStatus b { display: block; font-size: 15px; overflow-wrap: anywhere; }
+.taskStatus small { display: block; color: #abc8ce; font-size: 12px; margin-top: 5px; line-height: 1.5; }
+.taskStatus progress { width: 100%; height: 4px; accent-color: #67d9bf; display: block; margin-top: 9px; }
+.operations { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.operations button, .operations select { font-size: 13px; }
+.station .start { background: #23786f; border-color: #61c4b0; color: #ecfff9; }
+.station .danger { background: #5b3740; border-color: #a46268; }
+.dialog { position: fixed; inset: 0; margin: 0; padding: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; border: 0; background: #092c36; color: var(--color-text-primary); }
+.dialog::backdrop { background: #051d29; }
+.immersive.immersive { height: 100%; border: 0; border-radius: 0; }
+.immersive .stage { min-height: 0; }
+.confirmBackdrop { position: absolute; inset: 0; z-index: 12; display: grid; place-items: center; padding: 18px; background: #001321b8; backdrop-filter: blur(5px); }
+.confirm { width: min(620px, 100%); max-height: 100%; overflow-y: auto; border: 1px solid #4a8a8f; border-radius: 12px; background: #0b313e; box-shadow: 0 16px 55px #0007; padding: 22px; }
+.confirm > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.confirm h2 { margin: 0; font-size: 20px; }
+.confirm p { line-height: 1.75; color: #aac9d2; font-size: 14px; }
+.confirm dl { display: grid; grid-template-columns: 90px 1fr; gap: 14px; font-size: 14px; line-height: 1.8; }
+.confirm dt { color: #a3c8cb; }
+.confirm dd { margin: 0; overflow-wrap: anywhere; }
+.confirm footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+@media (min-width: 1650px) { .layerDock span { display: inline; } .stage { min-height: 830px; } .taskRail { width: 260px; } .layer { width: 360px; } }
+@media (max-width: 1150px) { .brand { flex: 1; } .navigation { order: 3; width: 100%; } .navigation button { flex: 1; } .layer { width: 310px; } .taskRail { width: 215px; } }
+@media (max-width: 760px) {
+  .header { padding: 10px; gap: 10px; } .brand b { font-size: 15px; } .brand small { font-size: 11px; } .headerActions button { font-size: 12px; padding: 7px; } .headerActions button svg { width: 16px; }
+  .navigation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; } .navigation button { font-size: 12px; padding: 7px 3px; }
+  .stage { min-height: 800px; } .situation { gap: 6px 12px; inset: 9px 9px auto; padding: 8px; } .situation b { display: none; }
+  .railToggle { top: 78px; left: 9px; font-size: 12px; }
+  .taskRail { top: 122px; left: 9px; bottom: calc(var(--map-footer-height, 180px) + var(--map-hud-height, 75px) + 44px); width: min(250px, calc(100% - 18px)); }
+  .layerDock { top: 78px; right: 56px; gap: 3px; max-width: calc(100% - 170px); flex-wrap: wrap; justify-content: flex-end; }
+  .layerDock button { min-height: 33px; padding: 6px; } .layerDock button svg { width: 16px; }
+  .layer { top: 122px; right: 56px; bottom: calc(var(--map-footer-height, 180px) + var(--map-hud-height, 75px) + 44px); width: min(340px, calc(100% - 74px)); z-index: 7; }
+  
+  
+  .bottomStack { left: 9px; right: 56px; bottom: 10px; }
+  .toolbar { flex-direction: column; align-items: stretch; padding: 10px; gap: 10px; } .taskStatus { max-width: none; } .taskStatus b { font-size: 14px; } .taskStatus small { font-size: 12px; }
+  .operations { justify-content: flex-start; } .operations button, .operations select { font-size: 12px; padding: 7px; } .operations select { max-width: 100%; }
+  .notice, .alert { font-size: 12px; max-height: 80px; } .drawingHint { top: 170px; width: calc(100% - 24px); }
+  .confirm { padding: 15px; } .confirm dl { grid-template-columns: 1fr; gap: 7px; } .confirm dd { padding-bottom: 7px; }
+}
+@media (max-height: 730px) and (min-width: 761px) { .immersive .taskRail, .immersive .layer { top: 110px; } .taskRail article { padding: 9px; } }
+
+
+.confirmBackdrop { position: fixed; inset: 0; margin: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; border: 0; color: var(--color-text-primary); }
+.confirmBackdrop::backdrop { background: #00132160; }
+
+
+.station.station { flex: 1; min-width: 0; min-height: 0; }
+.station .stage { min-height: 640px; }
+.station.immersive .stage { min-height: 0; }
+.workflow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.workflow button { flex: 1; min-width: 80px; font-size: 13px; }
+.qualification { margin-bottom: 14px; padding: 10px; background: #16444c; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.qualification p { margin: 0 0 8px; line-height: 1.6; font-size: 13px; }
+@media (max-width: 760px) { .station .stage { min-height: 800px; } .immersive .stage { min-height: 0; } }
+
+@media (max-height: 850px) and (min-width: 761px) {
+  .layer { top: 110px; }
+  
+  .layerBody { padding: 12px; }
+  .layerContext { padding-block: 6px; }
+}
+/* Keep geographic controls and imagery attribution above the floating task footer. */
+
+
+
+
+
+@media (max-width: 760px) {
+  /* Seven task tools may wrap to two rows; never let them cover a panel header. */
+  .layer { top: 166px; }
+  .taskRail { width: min(250px, calc(100% - 74px)); }
+}
+
+/* Do not compress the command map into the teaching shell on short desktops. */
+@media (min-width: 761px) and (max-width: 1649px) {
+  .header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 12px; padding: 8px 12px; }
+  .brand { min-width: 0; }
+  .brand small { display: none; }
+  .headerActions { grid-column: 2; grid-row: 1; }
+  .navigation { grid-column: 1 / -1; grid-row: 2; width: auto; }
+  .navigation button { flex: 1; padding-block: 6px; min-height: 32px; }
+}
+
+/* Full-screen-only task panel: one calm, collapsible list instead of floating card clutter. */
+.immersive .taskRail { width: 258px; padding: 12px; border: 1px solid #3c6c71; border-radius: 9px; background: #082c37f2; box-shadow: 0 10px 30px #00172480; backdrop-filter: blur(14px); }
+.immersive .taskRail > header { display: block; padding: 0 2px 11px; border-bottom: 1px solid #325b64; margin-bottom: 8px; }
+.immersive .taskRail > header small { display: block; margin-top: 5px; }
+.immersive .taskRail article { margin: 0; padding: 10px 7px 10px 10px; border: 0; border-left: 2px solid transparent; border-bottom: 1px solid #2d525d; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.immersive .taskRail article:hover, .immersive .taskRail article.activeCard { border-color: var(--task-color); background: #1c4b53; }
+.immersive .taskRail article > div > svg { width: 18px; height: 18px; }
+.immersive .taskRail article b { font-size: 13px; }
+.immersive .taskRail article small { font-size: 10px; }
+.immersive .taskRail article footer { padding-top: 7px; }
+.immersive .taskRail article button { min-height: 28px; }
+.immersive .overview { margin-top: 10px; }
+@media (max-width: 760px) { .immersive .taskRail { width: min(258px, calc(100% - 74px)); } }
+
+/* Ground-station hierarchy: persistent mission catalogue / independent dispatch / canvas overlays. */
+.immersive .taskRail { top: 62px; bottom: var(--map-footer-height, 115px); width: 278px; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: visible; background: #092c39f7; border-color: #355762; box-shadow: 0 8px 24px #00172435; backdrop-filter: blur(10px); }
+.immersive .taskRail > header { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 0 2px 8px; flex: 0 0 auto; }
+.immersive .taskRail > header small { margin: 0; font-size: 10px; }
+.taskCards { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); flex: 1 1 320px; min-height: 320px; max-height: 450px; gap: 4px; }
+.immersive .taskRail article { padding: 7px 8px; border: 1px solid transparent; border-left: 2px solid var(--task-color); border-radius: 6px; background: #123643; display: flex; flex-direction: column; justify-content: center; }
+.immersive .taskRail article:hover { border-color: #497581; background: #19404d; }
+.immersive .taskRail article.activeCard { border-color: #5ba4b1; background: #1b4653; }
+.immersive .taskRail article > div { gap: 7px; flex-wrap: nowrap; }
+.immersive .taskRail article b { font-size: 13px; }
+.immersive .taskRail article span { color: #c3dadd; font-size: 10px; }
+.immersive .taskRail article p { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 0 0; color: #a7c1c9; font-size: 10px; }
+.immersive .taskRail article strong { color: #e2f2f4; font-size: 12px; font-weight: 600; }
+.immersive .taskRail article strong small { display: inline; font-size: 10px; }
+.immersive .taskRail article footer { gap: 6px; padding-top: 5px; }
+.immersive .taskRail article button { min-height: 23px; padding: 2px 5px; font-size: 11px; background: #153e4b; border-color: #315663; }
+.station .railHandle { position: absolute; top: 78px; z-index: 6; width: 22px; min-height: 67px; padding: 7px 2px; flex-direction: column; gap: 3px; border-radius: 0 6px 6px 0; background: #123c49; border-color: #476872; }
+.railHandle span { font-size: 10px; writing-mode: vertical-rl; letter-spacing: 3px; }
+.schedule { flex: 0 0 auto; border-top: 1px solid #40606b; padding: 9px 2px 0; }
+.schedule > header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.schedule > header span { color: #9db9c2; font-size: 10px; }
+.scheduleTabs { display: flex; margin: 8px 0; background: #071f2c; border-radius: 5px; padding: 2px; }
+.station .scheduleTabs button { flex: 1; min-height: 25px; border: 0; border-radius: 4px; padding: 3px; font-size: 11px; background: transparent; color: #9fbac4; }
+.station .scheduleTabs button[aria-selected=true] { background: #23515e; color: #e7f8fc; }
+.scheduleTitle { display: flex; justify-content: space-between; font-size: 12px; gap: 8px; }
+.scheduleTitle b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.scheduleTitle span { color: #83d8d6; flex-shrink: 0; font-size: 10px; }
+.schedule p { color: #a7c1c9; margin: 5px 0; font-size: 11px; }
+.schedule progress { display: block; width: 100%; height: 3px; accent-color: #55c4ce; margin: 7px 0; }
+.station .schedule [role=tabpanel] > button { width: 100%; justify-content: space-between; font-size: 11px; min-height: 24px; padding: 3px 7px; border: 0; background: #153e4b; }
+.scheduleEmpty { padding: 6px 0; line-height: 1.8; }
+.layerDock { top: 61px; right: 69px; gap: 8px; max-width: calc(100% - 395px); }
+.toolGroup { background: #0b2d39f5; border: 1px solid #47636c; border-radius: 7px; padding: 5px; box-shadow: 0 3px 10px #00172320; }
+.toolGroup > small { display: block; color: #a9c2cb; font-size: 10px; margin: 0 4px 4px; }
+.toolGroup > div { display: flex; gap: 3px; }
+.layerDock button { min-height: 29px; padding: 5px 7px; font-size: 11px; border: 0; background: transparent; }
+.layerDock span { display: inline; }
+.immersive .layer { top: 132px; bottom: var(--map-footer-height, 115px); width: 356px; background: #092c39f7; border-color: #47636c; box-shadow: 0 8px 24px #00172435; }
+.toolbar { flex-direction: column; align-items: stretch; gap: 9px; padding: 12px 15px; background: #092c39f7; border-color: #355762; box-shadow: 0 5px 18px #00172430; }
+.taskStatus { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; max-width: none; }
+.taskStatus b { font-size: 14px; }
+.taskStatus small { margin: 0; font-size: 12px; color: #b5cdd4; }
+.taskStatus progress { width: 130px; height: 4px; margin: 0 0 0 auto; }
+.operations { border-top: 1px solid #31515d; padding-top: 8px; justify-content: flex-end; }
+.operations button, .operations select { font-size: 12px; min-height: 31px; padding: 5px 10px; }
+@media (min-width: 761px) and (max-height: 850px) {
+  .immersive .taskRail { gap: 6px; padding: 8px; }
+  .taskCards { min-height: 320px; gap: 3px; }
+  .immersive .taskRail article { padding: 5px 7px; }
+  .schedule { padding-top: 7px; }
+  .scheduleTabs { margin: 5px 0; }
+  .schedule p { margin: 4px 0; }
+}
+@media (max-width: 1100px) and (min-width: 761px) { .layerDock button span { display: none; } }
+@media (max-width: 760px) {
+  .immersive .taskRail { top: 117px; bottom: var(--map-footer-height, 180px); width: 258px; max-height: none; overflow-y: auto; }
+  .station .railHandle { top: 130px; }
+  .layerDock { top: 62px; max-width: calc(100% - 72px); }
+  .layerDock button span { display: none; }
+  .immersive .layer { top: 125px; width: min(356px, calc(100% - 75px)); }
+}
+@media (min-width: 761px) {
+  .immersive .taskRail { bottom: calc(var(--map-footer-height, 115px) - 10px); }
+  .toolbar { padding: 9px 14px; gap: 6px; }
+  .operations { padding-top: 6px; }
+  .operations button, .operations select { min-height: 29px; }
+}
+@media (min-width: 761px) {
+  .stage:not(:has([data-map-obstruction=left])) .mapHost [data-presentation=task] [data-map-hud] { left: 14px; max-width: min(530px, calc(100% - 90px)); }
+}
+@media (max-width: 1100px) {
+  .immersive .layer { bottom: calc(var(--map-footer-height, 115px) + var(--map-hud-height, 75px) + 44px); }
+}
+.statusMessages { position: absolute; left: 312px; right: 0; bottom: calc(100% + var(--map-hud-height, 75px) + 42px); display: grid; gap: 6px; max-width: 530px; }
+.statusMessages:empty { display: none; }
+.statusMessages .notice, .statusMessages .alert { margin: 0; }
+@media (max-width: 1100px) { .statusMessages { max-width: calc(100% - 680px); } }
+@media (max-width: 760px) { .statusMessages { left: 0; max-width: 100%; } }
+@media (max-width: 760px) {
+  .stage:has([data-map-obstruction=left]) .mapHost [data-map-hud] { display: none; }
+  .immersive .taskRail { overflow-y: auto; }
+}
+.schedule { flex: 1 0 auto; display: flex; flex-direction: column; min-height: min-content; }
+.schedule [role=tabpanel] { flex: 1; display: flex; flex-direction: column; }
+.station .schedule [role=tabpanel] > button { margin-top: auto; }
+.dispatchMetrics { display: grid; gap: 5px; padding: 8px 0; margin: 0; font-size: 11px; }
+.dispatchMetrics > div { display: flex; justify-content: space-between; gap: 8px; }
+.dispatchMetrics dt { color: #99b5c0; }
+.dispatchMetrics dd { color: #d4e7ec; margin: 0; text-align: right; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-height: 850px) { .dispatchMetrics { display: none; } }
+@media (min-width: 761px) and (max-height: 850px) { .schedule progress { margin-block: 4px; } .schedule { padding-top: 5px; } }
+.schedule progress, .taskStatus progress { appearance: none; border: 0; border-radius: 4px; overflow: hidden; background: #274c59; }
+.schedule progress::-webkit-progress-bar, .taskStatus progress::-webkit-progress-bar { background: #274c59; }
+.schedule progress::-webkit-progress-value, .taskStatus progress::-webkit-progress-value { background: #59c7cf; }
+.schedule progress::-moz-progress-bar, .taskStatus progress::-moz-progress-bar { background: #59c7cf; }
+.station .railHandle { left: 0; }
+.station .railHandle[aria-expanded=true] { left: 292px; }
+@media (max-width: 760px) { .station .railHandle[aria-expanded=true] { left: 267px; } }
+.immersive .taskRail article footer .cardCount { display: none; }
+.immersive .taskRail article button { min-height: 24px; }
+@media (max-height: 950px) {
+  /* Two deliberate rows on shorter screens, never three rows squeezed into one card. */
+  .immersive .taskRail article p { display: none; }
+  .immersive .taskRail article footer { align-items: center; }
+  .immersive .taskRail article footer .cardCount { display: block; flex: 0 0 46px; margin: 0; color: #c0d7de; font-size: 10px; }
+}
+/* Task workflow: compact dock centered in the unobstructed map, never a full-width form. */
+.station .bottomStack { left: 318px; right: 68px; bottom: 16px; }
+.stage:not(:has([data-map-obstruction=left])) .bottomStack { left: 20px; }
+.stage:has([data-map-obstruction=right]) .bottomStack { right: 438px; }
+.station .toolbar { width: min(660px, 100%); box-sizing: border-box; padding: 11px 15px; border-radius: 10px; background: #0a2939f5; }
+.station .taskStatus { justify-content: center; gap: 6px 12px; text-align: center; }
+.station .taskStatus b { font-size: 13px; }
+.station .taskStatus small { font-size: 11px; }
+.station .taskStatus progress { width: 76px; margin-left: 0; }
+.station .operations { justify-content: center; gap: 7px; padding-top: 9px; }
+.station .operations button { min-height: 32px; font-size: 12px; }
+.station .statusMessages { left: 0; right: 0; bottom: calc(100% + var(--map-hud-height, 75px) + 48px); max-width: min(660px, 100%); margin-inline: auto; }
+.station .statusMessages > div { font-size: 12px; line-height: 1.6; }
+.station.immersive .taskRail { bottom: 16px; }
+.station .toolbar[data-task-phase=failed] { border-color: #a76b65; }
+.station .toolbar[data-task-phase=verification] { border-color: #b29d62; }
+@media (max-width: 1100px) and (min-width: 761px) {
+  .stage:has([data-map-obstruction=right]) .bottomStack { right: 68px; }
+  .station.immersive .layer { bottom: calc(var(--map-footer-height, 115px) + var(--map-hud-height, 75px) + 44px); }
+}
+@media (max-width: 760px) {
+  .station .bottomStack { left: 12px; right: 56px; bottom: 10px; }
+  .stage:has([data-map-obstruction=right]) .bottomStack { right: 56px; }
+  .station .operations { gap: 5px; }
+  .station .operations button { font-size: 11px; padding: 5px 8px; }
+  .station.immersive .taskRail { bottom: calc(var(--map-footer-height, 115px) + 12px); }
+}
+
+.schedule:has(.relayDispatch) { max-height: 40%; overflow-y: auto; }
+.relayDispatch { display:grid; gap:4px; margin:9px 0; padding:7px; background:#123d49; border-radius:6px; font-size:10px; }
+.relayDispatch > b { color:#a4e3df; margin-bottom:3px; }
+.relayDispatch > span { display:flex; justify-content:space-between; gap:5px; color:#d5e9ed; }
+.relayDispatch small { color:#a8cbd0; text-align:right; }
+
+/* Each independent mission stays inspectable even while another is selected. */
+.activeDispatch, .archiveList { max-height: 260px; overflow-y: auto; border: 1px solid #355c66; border-radius: 5px; margin: 7px 0; }
+.activeDispatchRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 6px; padding: 5px; border-bottom: 1px solid #284b55; }
+.activeDispatchRow:last-child { border-bottom: 0; }
+.station .activeDispatchRow > button { min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; background: #194552; border: 0; color: #d6eff2; }
+.activeDispatchRow small { grid-column: 1 / -1; color: #a8cbd0; overflow-wrap: anywhere; }
+.activeDispatchRow progress { grid-column: 1; width: 100%; align-self: center; }
+.activeDispatchRow > div { grid-column: 2; grid-row: 1 / 4; display: flex; flex-direction: column; gap: 3px; }
+.station .activeDispatchRow > div button { min-height: 24px; width: auto; padding: 3px 6px; font-size: 10px; background: #194552; border: 0; color: #d6eff2; }
+.archiveList button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 5px; text-align: left; background: #194552; border: 0; border-bottom: 1px solid #284b55; color: #d6eff2; }
+.archiveList button:last-child { border-bottom: 0; }
+.archiveList button span { flex: 1; color: #a8cbd0; font-size: 10px; }

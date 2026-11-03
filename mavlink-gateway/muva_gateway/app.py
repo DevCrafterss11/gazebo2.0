@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pymavlink import mavutil
 
+from .management import router as management_router
 from .commands import CommandService, GatewayCommandError
 from .config import Settings
 from .missions import MissionService
@@ -319,12 +320,13 @@ def create_app(settings: Settings | None = None, gateway: Gateway | None = None,
     )
     app.state.gateway = configured_gateway
     app.state.security_range = range_gateway
+    app.include_router(management_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(configured_settings.cors_origins),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     def gateway_from_request(request: Request) -> Gateway:

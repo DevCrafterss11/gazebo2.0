@@ -29,12 +29,30 @@ from .swarm_console import FlightConsole
 from .transport import MavlinkTransport
 
 
+class DirectRtlError(CommandRejectedError):
+    """Report RTL outcomes without replacing a flight controller's active RTL mode."""
+
+
 class SwarmVehicleState(VehicleState):
     def __init__(self, heartbeat_timeout: float = 3.0, console: FlightConsole | None = None) -> None:
         super().__init__(heartbeat_timeout)
         self._position_estimate_at = 0.0
         self._position_estimate_valid = False
         self.console = console
+        self._waits_cancelled = False
+
+    def cancel_waits(self) -> None:
+        # Wake ACK/heartbeat/altitude waits before reclaiming the owned processes.
+        with self._condition:
+            self._waits_cancelled = True
+            self._condition.notify_all()
+
+    def wait_for(self, predicate: Any, timeout: float) -> Any:
+        def cancellable() -> Any:
+            if self._waits_cancelled:
+                raise CommandRejectedError("操作员已中止仿真，停止等待飞控确认")
+            return predicate()
+        return super().wait_for(cancellable, timeout)
 
     def handle_message(self, message: Any) -> None:
         if message.get_type() == "EKF_STATUS_REPORT":
@@ -105,6 +123,7 @@ class SitlVehicle:
     completed: int = 0
     trajectory: list[list[float]] = field(default_factory=list)
     returning: list[list[float]] = field(default_factory=list)
+    return_mode: str = "planned"
     monitor_process: subprocess.Popen[bytes] | None = None
     console: FlightConsole | None = None
 
@@ -128,6 +147,7 @@ class SwarmSitlRuntime:
         self.vehicles: list[SitlVehicle] = []
         self.config: dict[str, Any] = {}
         self.session_id: str | None = None
+        self._last_aborted_session_id: str | None = None
         self.status = "DRAFT"
         self.events: list[str] = []
         self.plan: list[dict[str, Any]] = []
@@ -210,8 +230,14 @@ class SwarmSitlRuntime:
         if not self._operation.acquire(blocking=False):
             raise CommandRejectedError("机群正在初始化或关闭，请稍后重试")
         try:
+            if (session_id == self._last_aborted_session_id and not self.session_id
+                    and not self.vehicles and not self.gazebo):
+                return  # A lost response/repeated click must not turn completed cleanup into failure.
             self.require_session(session_id)
             self._cancel.set()
+            for vehicle in self.vehicles:
+                if isinstance(vehicle.state, SwarmVehicleState):
+                    vehicle.state.cancel_waits()
             self.paused = False
             worker = self._worker
             if worker and worker.is_alive():
@@ -226,6 +252,7 @@ class SwarmSitlRuntime:
             self._close_vehicles()
             self._stop_gazebo()
             self.session_id = None
+            self._last_aborted_session_id = session_id
             self._worker = None
         finally:
             self._operation.release()
@@ -234,6 +261,7 @@ class SwarmSitlRuntime:
         if not self._operation.acquire(blocking=False):
             raise CommandRejectedError("机群正在配置或下发，请稍后重试")
         try:
+            config = {"safety": 3, **config}
             self.validate_config(config)
             self.require_ground()
             if not self.binary.is_file() or not os.access(self.binary, os.X_OK):
@@ -418,7 +446,7 @@ class SwarmSitlRuntime:
                     "waypointIndex": vehicle.waypoint_index, "progress": vehicle.completed / total * 100 if total else 0,
                     "trajectory": copy.deepcopy(vehicle.trajectory), "completedSegments": vehicle.completed,
                     "connected": raw["connection"]["connected"], "armed": raw["vehicle"]["armed"], "flightMode": raw["vehicle"]["mode"],
-                    "gpsFixType": telemetry.get("gpsFixType", 0), "returnWaypoints": copy.deepcopy(vehicle.returning)})
+                    "gpsFixType": telemetry.get("gpsFixType", 0), "returnMode": getattr(vehicle, "return_mode", "planned"), "returnWaypoints": copy.deepcopy(vehicle.returning)})
             total = sum(len(mission["coverageSegments"]) for mission in self.plan)
             elapsed = ((self.finished_at or time.monotonic()) - self.started_at) if self.started_at else 0
             return {"status": self.status, "drones": drones, "elapsed": elapsed, "events": list(self.events),
@@ -454,7 +482,7 @@ class SwarmSitlRuntime:
             self.plan = copy.deepcopy(missions)
             self.plan_id = plan_id
             self.status = "PLANNED"
-            self.event("全部飞控任务上传/回读一致；后端 GUIDED 分阶段执行同一已验证路径")
+            self.event("全部飞控任务上传/回读一致；保持多机并行，交叉航段自动局部等待避让")
             return self.snapshot()
         except Exception as error:
             if active_vehicle:
@@ -466,7 +494,7 @@ class SwarmSitlRuntime:
             self._operation.release()
 
     def _validate_plan(self, missions: list[dict[str, Any]]) -> None:
-        from .swarm_routing import hits_box, timed_paths_violate_separation
+        from .swarm_routing import hits_box, plan_parallel_routes
         if len(missions) != len(self.vehicles) or [mission.get("droneId") for mission in missions] != [vehicle.drone_id for vehicle in self.vehicles]:
             raise InvalidCommandError("任务数量/编号与后端实际机群不匹配")
         origin = self.config["sceneOrigin"]
@@ -491,6 +519,10 @@ class SwarmSitlRuntime:
                 raise InvalidCommandError("覆盖航段与实际路径/索引不一致")
             if metres(paths[1][0], vehicle.home) > 2 or metres(paths[1][-1], paths[0][start]) > .1 or metres(paths[2][0], paths[0][-1]) > .1 or metres(paths[2][-1], vehicle.home) > 2:
                 raise InvalidCommandError("任务入场/返航与实际服务 Home 不一致")
+            expected_entry = [vehicle.home, *paths[0][:start + 1]]
+            compact = lambda path: [point for index, point in enumerate(path) if index == 0 or metres(point, path[index - 1]) > .001]
+            if len(compact(paths[1])) != len(compact(expected_entry)) or any(metres(first, second) > .1 for first, second in zip(compact(paths[1]), compact(expected_entry))):
+                raise InvalidCommandError("入场路径与实际执行航点不一致，请重新生成航线")
             if len(paths[0]) + len(paths[2]) + 1 > 198:
                 raise InvalidCommandError("当前飞控任务最多支持198个路径点，请增大扫描间距")
             boxes = mission.get("routingObstacles", [])
@@ -500,10 +532,9 @@ class SwarmSitlRuntime:
             if any(hits_box(first, second, box) for first, second in zip(full, full[1:]) for box in boxes):
                 raise InvalidCommandError("任务穿越禁飞缓冲区")
             execution_paths.append([local(point) for point in [vehicle.home, *paths[0], *paths[2][1:]]])
-        for index, path in enumerate(execution_paths):
-            for other in execution_paths[index + 1:]:
-                if timed_paths_violate_separation(path, 0, other, 0, self.config["safety"] + 2, self.config["speed"]):
-                    raise InvalidCommandError("完整入场/覆盖/返航时间轨迹将触发安全间距；请调整分区、航线或机群速度后重新检查")
+        schedule = plan_parallel_routes(execution_paths, self.config["safety"] + 2, self.config["speed"], self.config["altitude"] / 5)
+        self.dispatch_order = schedule["order"]
+        self.dispatch_waits = schedule["waits"]
 
     def command(self, action: str, drone_id: str | None = None) -> dict[str, Any]:
         targets = [vehicle for vehicle in self.vehicles if drone_id is None or vehicle.drone_id == drone_id]
@@ -573,7 +604,13 @@ class SwarmSitlRuntime:
         try:
             operation()
         except Exception as error:
+            if self._cancel.is_set():
+                return  # Explicit reclaim must not send recovery commands or report a flight failure.
             self.last_error = str(error)
+            if isinstance(error, DirectRtlError):
+                self.status = "FAILED"
+                self.event(f"RTL 返航存在未确认结果：{error}；保留飞控当前模式，可重试或手动回收")
+                return
             self.event(f"飞控执行失败：{error}；尝试原地悬停，不伪造完成")
             self.status = "FAILED"
             for vehicle in self.vehicles:
@@ -620,44 +657,90 @@ class SwarmSitlRuntime:
         vehicle.transport.send(lambda connection: connection.mav.set_position_target_global_int_send(0, vehicle.sys_id, vehicle.state.target[1],
             mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, 3576, round(point[1] * 1e7), round(point[0] * 1e7), self.config["altitude"], 0, 0, 0, 0, 0, 0, 0, 0))
 
+    def _corridor_free(self, vehicle: SitlVehicle, point: list[float], reservations: dict[str, list[list[float]]]) -> bool:
+        from .swarm_routing import segment_distance
+        if len(self.vehicles) < 2:
+            return True
+        origin = self.config["sceneOrigin"]
+        local = lambda value: [(value[0] - origin[0]) * 111320 * math.cos(math.radians(origin[1])), (value[1] - origin[1]) * 110540]
+        segment = [local(self._position(vehicle)), local(point)]
+        clearance = self.config["safety"] + 2
+        for other in self.vehicles:
+            if other is vehicle or other.phase == "LANDED":
+                continue
+            vertical = abs(self.config["altitude"] - other.state.telemetry_value("altitude"))
+            if vertical >= clearance:
+                continue
+            required = math.sqrt(clearance ** 2 - vertical ** 2)
+            position = local(self._position(other))
+            if segment_distance(segment, [position, position]) < required - .01:
+                return False
+            if other.drone_id in reservations and segment_distance(segment, [local(value) for value in reservations[other.drone_id]]) < clearance - .01:
+                return False
+        return True
+
     def _move_many(self, routes: dict[str, list[list[float]]], coverage: bool = False,
-                   coverage_ranges: dict[str, tuple[int, int, int]] | None = None) -> None:
+                   coverage_ranges: dict[str, tuple[int, int, int]] | None = None, on_complete: Any = None) -> None:
         cursors = {drone_id: 0 for drone_id in routes}
         deadlines: dict[str, float] = {}
         announced: dict[str, int] = {}
         held = False
+        reservations: dict[str, list[list[float]]] = {}
+        waiting: set[str] = set()
+        notified: set[str] = set()
+        blocked_since: float | None = None
+        order = getattr(self, "dispatch_order", list(range(len(self.vehicles))))
+        vehicles = [self.vehicles[index] for index in order]
         while any(cursors[drone_id] < len(path) for drone_id, path in routes.items()):
             if self._cancel.is_set():
                 raise CommandRejectedError("后端调度已停止")
-            self._check_motion()
+            # Aircraft handed to LAND already reached HOME; leave that confirmed landing in progress.
+            self.return_requested.difference_update(notified)
             if self.return_requested and not self._returning:
                 for vehicle in self.vehicles:
-                    if vehicle.state.vehicle_value("armed"):
+                    if vehicle.drone_id not in notified and vehicle.state.vehicle_value("armed"):
                         self._target(vehicle, self._position(vehicle))
+                reservations.clear()
                 self._return_pending()
                 deadlines.clear()
+            self._check_motion()
             if self.paused:
                 if not held:
                     for vehicle in self.vehicles:
-                        if vehicle.state.vehicle_value("armed"):
+                        if vehicle.drone_id not in notified and vehicle.state.vehicle_value("armed"):
                             self._target(vehicle, self._position(vehicle))
                             vehicle.phase = "PAUSED"
                     held = True
+                    reservations.clear()
                 time.sleep(.2)
                 deadlines.clear()
                 continue
             held = False
-            for vehicle in self.vehicles:
+            for vehicle in vehicles:
                 path = routes.get(vehicle.drone_id, [])
                 cursor = cursors.get(vehicle.drone_id, 0)
                 if vehicle.phase == "LANDED":
                     cursors[vehicle.drone_id] = len(path)
+                    continue
+                # A blocked RTL request must not resume this aircraft's coverage route.
+                if vehicle.drone_id in self.return_requested and not self._returning:
                     continue
                 if cursor >= len(path):
                     continue
                 if not vehicle.state.is_online():
                     raise CommandRejectedError(f"{vehicle.drone_id} 飞控心跳中断")
                 point = path[cursor]
+                if vehicle.drone_id not in reservations:
+                    if not self._corridor_free(vehicle, point, reservations):
+                        self._target(vehicle, self._position(vehicle))
+                        if vehicle.drone_id not in waiting:
+                            waiting.add(vehicle.drone_id)
+                            self.event(f"{vehicle.drone_id} 交叉航段局部避让等待；其余无冲突航线继续并行")
+                        continue
+                    reservations[vehicle.drone_id] = [self._position(vehicle), point]
+                    if vehicle.drone_id in waiting:
+                        waiting.remove(vehicle.drone_id)
+                        self.event(f"{vehicle.drone_id} 冲突航段已释放，自动继续执行")
                 remaining = metres(self._position(vehicle), point)
                 deadline = deadlines.setdefault(vehicle.drone_id, time.monotonic() + max(35, remaining / self.config["speed"] * 4 + 20))
                 if time.monotonic() > deadline:
@@ -672,6 +755,7 @@ class SwarmSitlRuntime:
                     self._record(vehicle, "DONE", f"遥测确认目标 {cursor + 1}/{len(path)} 已抵达（误差 {remaining:.2f} m）")
                     cursors[vehicle.drone_id] += 1
                     deadlines.pop(vehicle.drone_id, None)
+                    reservations.pop(vehicle.drone_id, None)
                     if coverage_range and coverage_range[0] <= cursor <= coverage_range[1]:
                         coverage_cursor = cursor - coverage_range[0]
                         vehicle.waypoint_index = coverage_range[2] + coverage_cursor + 1
@@ -686,6 +770,15 @@ class SwarmSitlRuntime:
                         vehicle.completed = sum(index <= vehicle.waypoint_index for index in mission["coverageWaypointIndices"])
                 if cursors[vehicle.drone_id] >= len(path) and not self._returning:
                     vehicle.phase = "RETURNING" if coverage_range else "HOLDING"
+                    if on_complete and vehicle.drone_id not in notified:
+                        notified.add(vehicle.drone_id)
+                        on_complete(vehicle)
+            if waiting and not reservations:
+                blocked_since = blocked_since or time.monotonic()
+                if time.monotonic() - blocked_since > 120:
+                    raise CommandRejectedError("实际位置导致交叉航段持续无法安全放行；保持悬停，未跳过安全间距检查")
+            else:
+                blocked_since = None
             time.sleep(.2)
 
     def _execute(self) -> None:
@@ -704,17 +797,21 @@ class SwarmSitlRuntime:
             vehicle.phase = "RUNNING"
             vehicle.returning = mission["returnPath"]
         self.event("各机独立执行入场、覆盖与返航；任一飞机完成覆盖即单独返航")
-        self._move_many(routes, coverage_ranges=coverage_ranges)
-        self.status = "RETURNING"
-        active = [vehicle for vehicle in self.vehicles if vehicle.drone_id in routes]
-        with ThreadPoolExecutor(max_workers=max(1, len(active)), thread_name_prefix="experiment2-land") as pool:
-            futures = {vehicle.drone_id: pool.submit(self._land_vehicle, vehicle) for vehicle in active}
-            for vehicle in active:
-                futures[vehicle.drone_id].result()
+        # Land each aircraft as soon as its independent route reaches HOME.
+        # Others continue flying; there is no fleet-wide entry/return barrier.
+        with ThreadPoolExecutor(max_workers=max(1, len(routes)), thread_name_prefix="experiment2-land") as pool:
+            futures = []
+            def land(vehicle: SitlVehicle) -> None:
+                self._land_vehicle(vehicle)
                 vehicle.phase = "LANDED"
                 vehicle.returning = []
                 self._record(vehicle, "DONE", "飞控确认降落：已上锁且遥测高度低于 0.8 m")
-                self.event(f"{vehicle.drone_id} 飞控确认降落/上锁")
+                self.event(f"{vehicle.drone_id} 飞控确认降落/上锁，其余航线继续并行")
+            self._move_many(routes, coverage_ranges=coverage_ranges,
+                            on_complete=lambda vehicle: futures.append(pool.submit(land, vehicle)))
+            self.status = "RETURNING"
+            for future in futures:
+                future.result()
         self._finish()
 
     def _return_fleet(self, routes: dict[str, list[list[float]]]) -> None:
@@ -745,18 +842,58 @@ class SwarmSitlRuntime:
             raise CommandTimeoutError(f"{vehicle.drone_id} 降落未确认")
 
     def _return_pending(self) -> None:
-        pending = list(self.return_requested)
-        self.return_requested.clear()
-        for vehicle in self.vehicles:
-            if vehicle.drone_id in pending:
-                if vehicle.state.vehicle_value("armed"):
-                    self._return_vehicle(vehicle, self._safe_return(vehicle))
-                else:
-                    vehicle.phase = "LANDED"
+        # Explicit RTL is owned by the flight controller. Do not plan/check a gateway route.
+        failures: list[str] = []
+        while self.return_requested and not self._cancel.is_set():
+            pending = set(self.return_requested)
+            self.return_requested.difference_update(pending)
+            active = [vehicle for vehicle in self.vehicles if vehicle.drone_id in pending and vehicle.phase != "LANDED"]
+            if not active:
+                continue
+            with ThreadPoolExecutor(max_workers=len(active), thread_name_prefix="experiment2-rtl") as pool:
+                futures = {vehicle.drone_id: pool.submit(self._direct_rtl, vehicle) for vehicle in active}
+                for vehicle in active:
+                    try:
+                        futures[vehicle.drone_id].result()
+                    except Exception as error:
+                        if self._cancel.is_set():
+                            continue
+                        message = f"{vehicle.drone_id} RTL 返航未完成：{error}"
+                        failures.append(message)
+                        self.event(message)
+                        self._record(vehicle, "ERROR", message)
+        if self._cancel.is_set():
+            return
+        if failures:
+            # All peers have already had their independent RTL attempt before surfacing failure.
+            raise DirectRtlError("；".join(failures))
+        self.last_error = None
         if all(not vehicle.state.vehicle_value("armed") for vehicle in self.vehicles):
             self._finish()
         elif self.status == "RETURNING":
             self.status = "HOLDING"
+
+    def _direct_rtl(self, vehicle: SitlVehicle) -> None:
+        if not vehicle.state.is_online():
+            raise CommandRejectedError("飞控心跳失联，无法确认 RTL")
+        vehicle.return_mode = "RTL"
+        if not vehicle.state.vehicle_value("armed"):
+            # A disarmed aircraft in the air is not a confirmed landing.
+            if vehicle.state.telemetry_value("altitude") >= .8:
+                raise CommandRejectedError("飞控已上锁，但遥测未确认落地")
+        else:
+            vehicle.phase = "RETURNING"
+            vehicle.returning = [self._position(vehicle), list(vehicle.home)]
+            self._record(vehicle, "TX", "并行下发 RTL；返航与降落由飞控执行")
+            vehicle.commands.rtl()
+            if not vehicle.state.wait_for(lambda: vehicle.state.is_online()
+                                          and not vehicle.state.vehicle_value("armed")
+                                          and vehicle.state.telemetry_value("altitude") < .8, 180):
+                raise CommandTimeoutError("未收到返航落地/上锁确认")
+        vehicle.phase = "LANDED"
+        vehicle.returning = []
+        self._record(vehicle, "DONE", "RTL 遥测确认落地且已上锁")
+        self.event(f"{vehicle.drone_id} RTL 返航完成，其他飞机独立继续")
 
     def _check_motion(self) -> None:
         from .swarm_routing import hits_box
@@ -795,18 +932,20 @@ class SwarmSitlRuntime:
 
     def _return_vehicle(self, vehicle: SitlVehicle, path: list[list[float]]) -> None:
         self._returning = True
-        vehicle.phase = "RETURNING"
-        vehicle.returning = path
-        self._move_many({vehicle.drone_id: path[1:]})
-        vehicle.phase = "RETURNING"
-        vehicle.commands.land()
-        if not vehicle.state.wait_for(lambda: not vehicle.state.vehicle_value("armed") and vehicle.state.telemetry_value("altitude") < .8, 100):
-            raise CommandTimeoutError(f"{vehicle.drone_id} 降落未确认")
-        vehicle.phase = "LANDED"
-        vehicle.returning = []
-        self._record(vehicle, "DONE", "飞控确认降落：已上锁且遥测高度低于 0.8 m")
-        self.event(f"{vehicle.drone_id} 飞控确认降落/上锁")
-        self._returning = False
+        try:
+            vehicle.phase = "RETURNING"
+            vehicle.returning = path
+            self._move_many({vehicle.drone_id: path[1:]})
+            vehicle.phase = "RETURNING"
+            vehicle.commands.land()
+            if not vehicle.state.wait_for(lambda: not vehicle.state.vehicle_value("armed") and vehicle.state.telemetry_value("altitude") < .8, 100):
+                raise CommandTimeoutError(f"{vehicle.drone_id} 降落未确认")
+            vehicle.phase = "LANDED"
+            vehicle.returning = []
+            self._record(vehicle, "DONE", "飞控确认降落：已上锁且遥测高度低于 0.8 m")
+            self.event(f"{vehicle.drone_id} 飞控确认降落/上锁")
+        finally:
+            self._returning = False
 
     def _finish(self) -> None:
         complete = all(vehicle.completed == len(mission["coverageSegments"]) for vehicle, mission in zip(self.vehicles, self.plan))

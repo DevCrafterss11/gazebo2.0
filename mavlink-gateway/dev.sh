@@ -22,5 +22,12 @@ else
     fi
 fi
 
+if [[ "${MUVA_DATABASE_URL:-}" == postgresql://* || "${MUVA_DATABASE_URL:-}" == postgres://* ]]; then
+    if ! "${runtime[@]}" -c "import psycopg" >/dev/null 2>&1; then
+        echo "PostgreSQL 账号模式缺少 psycopg；请先安装 requirements.txt。" >&2
+        exit 1
+    fi
+fi
+
 cd "${project_dir}"
 exec "${runtime[@]}" -m uvicorn muva_gateway.app:app --host 0.0.0.0 --port "${MUVA_GATEWAY_PORT:-8000}" "$@"

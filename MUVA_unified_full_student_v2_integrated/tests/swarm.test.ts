@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import { campusOrigin, distance, planMissions, polygonCenter, swarmFrame, toGeo, toLocal, validateArea } from '../src/domain/swarmGeometry';
 import { areaOverlapsNoFly, assertPlanningSafe, partitionSwarmArea, pointInPolygon, routeIntersectsNoFly } from '../src/domain/swarmPlanning';
+import { corridorAvailable, planParallelRoutes } from '../src/domain/swarmDeconfliction';
 import { scoreSwarm } from '../src/domain/swarmScoring';
 import { MockSwarmRuntime } from '../src/services/mock/MockSwarmRuntime';
 import { orthogonalRoute, routeLength, shortestRoute, segmentDistance, segmentHitsBox } from '../src/domain/swarmRouting';
@@ -311,7 +312,7 @@ test('安全检查按完整线段间距识别跨机冲突，不只检查顶点�
 });
 
 for (const { count, blocked, angle = 0 } of [{ count: 2, blocked: false }, { count: 3, blocked: false }, { count: 3, blocked: true },
-  { count: 4, blocked: false }, { count: 5, blocked: false }, { count: 3, blocked: false, angle: Math.PI / 6 }, { count: 3, blocked: true, angle: Math.PI / 6 }]) {
+  { count: 4, blocked: false }, { count: 5, blocked: false }, { count: 6, blocked: false }, { count: 3, blocked: false, angle: Math.PI / 6 }, { count: 3, blocked: true, angle: Math.PI / 6 }]) {
   test(`${count} 架独立入场、覆盖完成即返航并保持连续运动安全间距（禁飞绕障 ${blocked}，旋转 ${angle.toFixed(2)}）`, async () => {
     const setting = { ...config, count, altitude: 20, speed: 10, spacing: 10 };
     const rotate = ([east, north]: Point): Point => [east * Math.cos(angle) - north * Math.sin(angle), east * Math.sin(angle) + north * Math.cos(angle)];
@@ -325,10 +326,12 @@ for (const { count, blocked, angle = 0 } of [{ count: 2, blocked: false }, { cou
     for (let index = 0; index < 200 && runtime.getStatus().status !== 'HOLDING'; index += 1) runtime.tick(.2);
     assert.equal(runtime.getStatus().status, 'HOLDING');
     runtime.startMission();
+    let maxMoving = 0;
     for (let step = 0; step < 4000 && runtime.getStatus().status !== 'COMPLETED'; step += 1) {
       const before = runtime.getFleet();
       runtime.tick(.2);
       const after = runtime.getFleet();
+      maxMoving = Math.max(maxMoving, after.filter((drone) => drone.speed > .1).length);
       before.forEach((drone, index) => before.slice(index + 1).forEach((other, offset) => {
         const otherIndex = index + offset + 1;
         const from = toLocal(drone.position);
@@ -344,6 +347,7 @@ for (const { count, blocked, angle = 0 } of [{ count: 2, blocked: false }, { cou
       }));
     }
     assert.equal(runtime.getStatus().status, 'COMPLETED');
+    assert.ok(maxMoving >= 2, '无冲突航段至少两机同时飞行，不应改成整队串行');
     runtime.getFleet().forEach((drone) => {
       assert.equal(routeIntersectsNoFly(drone.trajectory, zones), false);
       assert.ok(Math.abs(routeLength(drone.trajectory.map(toLocal)) - missions.find((mission) => mission.droneId === drone.droneId)!.plannedDistance) < .05);
@@ -360,29 +364,30 @@ test('禁飞缓冲截断狭窄作业带时明确拒绝，不借道其他无人�
   assert.throws(() => planMissions(area, setting, undefined, [zone]), /被禁飞区阻断/);
 });
 
-test('单机提前返航优先执行，其余扫描等待，落地后继续而不是互相穿越', async () => {
+test('单机模拟 RTL 提前返航时，其余覆盖任务继续推进', async () => {
   const runtime = new MockSwarmRuntime();
-  const missions = planMissions(validateArea(rectangle), config, runtime.initialize(config).drones);
-  runtime.loadMission(missions); await runtime.uploadMission(missions, 'urgent-return-plan'); runtime.markReady(); runtime.takeoff(); runtime.stop();
-  for (let index = 0; index < 100 && runtime.getStatus().status !== 'HOLDING'; index += 1) runtime.tick(.2);
-  runtime.startMission();
-  for (let index = 0; index < 1000 && !runtime.getFleet().some((drone) => drone.completedSegments > 0); index += 1) runtime.tick(.2);
-  const requested = runtime.getFleet().find((drone) => drone.state === 'RUNNING' && drone.progress < 100)!;
-  assert.ok(requested);
-  runtime.returnDroneToHome(requested.droneId);
-  const waiting = runtime.getFleet().filter((drone) => drone.droneId !== requested.droneId);
-  for (let index = 0; index < 1000 && runtime.getFleet().find((drone) => drone.droneId === requested.droneId)!.state !== 'LANDED'; index += 1) {
-    runtime.tick(.2);
-    waiting.forEach((drone) => assert.deepEqual(runtime.getFleet().find((other) => other.droneId === drone.droneId)!.position, drone.position));
-  }
-  assert.equal(runtime.getFleet().find((drone) => drone.droneId === requested.droneId)!.state, 'LANDED');
-  runtime.tick(.2);
-  assert.ok(waiting.some((drone) => distance(toLocal(runtime.getFleet().find((other) => other.droneId === drone.droneId)!.position), toLocal(drone.position)) > .01));
-  runtime.dispose();
+  try {
+    const missions = planMissions(validateArea(rectangle), config, runtime.initialize(config).drones);
+    runtime.loadMission(missions); await runtime.uploadMission(missions, 'urgent-return-plan'); runtime.markReady(); runtime.takeoff(); runtime.stop();
+    for (let index = 0; index < 100 && runtime.getStatus().status !== 'HOLDING'; index += 1) runtime.tick(.2);
+    runtime.startMission();
+    for (let index = 0; index < 1000 && !runtime.getFleet().some((drone) => drone.completedSegments > 0); index += 1) runtime.tick(.2);
+    const requested = runtime.getFleet().find((drone) => drone.state === 'RUNNING' && drone.progress < 100)!;
+    assert.ok(requested);
+    runtime.returnDroneToHome(requested.droneId);
+    const peers = runtime.getFleet().filter((drone) => drone.droneId !== requested.droneId);
+    let peerMoved = false;
+    for (let index = 0; index < 1000 && runtime.getFleet().find((drone) => drone.droneId === requested.droneId)!.state !== 'LANDED'; index += 1) {
+      runtime.tick(.2);
+      peerMoved ||= peers.some((drone) => distance(toLocal(runtime.getFleet().find((other) => other.droneId === drone.droneId)!.position), toLocal(drone.position)) > .01);
+    }
+    assert.equal(runtime.getFleet().find((drone) => drone.droneId === requested.droneId)!.state, 'LANDED');
+    assert.ok(peerMoved, '单机返航不应冻结其他覆盖任务');
+  } finally { runtime.dispose(); }
 });
 
 for (const early of [false, true]) {
-  test(`${early ? '提前' : '正常'}禁飞绕障返航及返航检查点恢复`, async () => {
+  test(`${early ? '提前直接 RTL' : '正常规划绕障'}返航及检查点恢复`, async () => {
     const setting = { ...config, count: 2 };
     const area = validateArea(([[-100, 40], [100, 40], [100, 130], [-100, 130]] as Point[]).map(toGeo));
     const zone = validateArea(([[-150, -20], [150, -20], [150, 20], [-150, 20]] as Point[]).map(toGeo));
@@ -405,7 +410,7 @@ for (const early of [false, true]) {
     for (let index = 0; index < 5000 && !['COMPLETED', 'ABORTED'].includes(restored.getStatus().status); index += 1) restored.tick(.5);
     assert.equal(restored.getStatus().status, early ? 'ABORTED' : 'COMPLETED');
     restored.getFleet().forEach((drone) => {
-      assert.equal(routeIntersectsNoFly(drone.trajectory, [zone]), false, '实际执行轨迹（含返航）不得穿越禁飞区');
+      if (!early) assert.equal(routeIntersectsNoFly(drone.trajectory, [zone]), false, '正常规划航线保留禁飞区绕障');
       assert.deepEqual(drone.position, drone.homePosition);
     });
     runtime.dispose(); restored.dispose();
@@ -474,6 +479,42 @@ test('暂停保持位置，恢复插值前进，提前返航保留覆盖缺口',
   assert.equal(runtime.getStatus().status, 'ABORTED');
   assert.ok(runtime.getStatus().coverage < 100);
   runtime.dispose();
+});
+
+for (const completedCoverage of [false, true]) test(`显式模拟 RTL 并行直返，不调用返航路径规划（${completedCoverage ? '覆盖已完成' : '提前返航'}）`, async () => {
+  const runtime = new MockSwarmRuntime();
+  const restored = new MockSwarmRuntime();
+  try {
+    const fleet = runtime.initialize(config).drones;
+    const missions = planMissions(validateArea(rectangle), config, fleet);
+    runtime.loadMission(missions); await runtime.uploadMission(missions, 'direct-return-plan');
+    runtime.markReady(); runtime.takeoff(); runtime.stop();
+    for (let index = 0; index < 50; index += 1) runtime.tick(.2);
+    const snapshot = runtime.getStatus();
+    // Explicit RTL follows HOME directly, including HOME outside the route planner's fence.
+    snapshot.drones[0]!.homePosition = toGeo([600, 0]);
+    snapshot.drones.forEach((drone, index) => {
+      drone.position = toGeo([index * 30, 100]);
+      if (completedCoverage) drone.completedSegments = missions[index]!.coverageSegments.length;
+    });
+    runtime.restore(config, missions, snapshot); runtime.stop();
+    runtime.returnToHome(); runtime.stop();
+    const returning = runtime.getStatus();
+    returning.drones.forEach((drone) => assert.equal(drone.returnMode, 'RTL'));
+    runtime.tick(.2);
+    runtime.getFleet().forEach((drone, index) => {
+      const before = returning.drones[index]!;
+      assert.ok(distance(toLocal(drone.position), toLocal(drone.homePosition)) < distance(toLocal(before.position), toLocal(before.homePosition)), '同一 tick 全部飞机均开始直返');
+    });
+    restored.restore(config, missions, runtime.getStatus()); restored.stop();
+    for (let index = 0; index < 1000 && !['COMPLETED', 'ABORTED'].includes(restored.getStatus().status); index += 1) restored.tick(.2);
+    restored.getFleet().forEach((drone) => {
+      assert.equal(drone.state, 'LANDED');
+      assert.deepEqual(drone.position, drone.homePosition);
+    });
+    assert.equal(restored.getStatus().status, completedCoverage ? 'COMPLETED' : 'ABORTED');
+    assert.ok(!restored.getStatus().events.some((event) => event.includes('返航路径暂不可用')));
+  } finally { runtime.dispose(); restored.dispose(); }
 });
 
 test('评分随实际覆盖率、终态及安全降落变化', () => {
@@ -665,4 +706,37 @@ test('高清校园场景独立 ENU 坐标系，兼容旧场景且模拟航程一
   assert.equal(runtime.getStatus().coverage, 100);
   assert.deepEqual(runtime.getFleet()[0]!.homePosition, frame.toGeo([-48, -52]));
   runtime.dispose();
+});
+
+
+test('并行航段预约自动化解交叉返航，允许无冲突航线同时执行', () => {
+  const paths: Point[][] = [
+    [[-15, 0], [-15, 10], [-15, 20], [0, 10], [-15, 0]],
+    [[15, 0], [15, 10], [15, 20], [0, 10], [15, 0]],
+  ];
+  const schedule = planParallelRoutes(paths, 10, 7, 4);
+  assert.equal(schedule.maxConcurrent, 2);
+  assert.ok(schedule.waits.some((wait) => wait > 0), '只让争用交叉航段的飞机局部等待');
+  assert.equal(corridorAvailable([[-10, 0], [10, 0]], [], [[[0, -10], [0, 10]]], 3), false);
+  assert.throws(() => planParallelRoutes([[[-15, 0], [15, 0]], [[15, 0], [-15, 0]]], 10, 7, 4), /无法安全放行/);
+  assert.throws(() => planParallelRoutes([[[0, 0], [0, 20]], [[5, 0], [5, 20]]], 10, 7, 4), /起降点不足安全间距/);
+});
+
+test('原始分区匹配被其他起降点阻挡时自动重新分配，保留编号、覆盖分区及安全校验', () => {
+  const setting = { ...config, count: 2, altitude: 20, speed: 7, spacing: 12, safety: 5 };
+  const area = validateArea(([[-50, 20], [50, 20], [50, 80], [-50, 80]] as Point[]).map(toGeo));
+  const runtime = new MockSwarmRuntime();
+  try {
+    const initial = runtime.initialize(setting);
+    const original = planMissions(area, setting, initial.drones);
+    const fleet = structuredClone(initial.drones);
+    for (const [index, point] of ([[ -60, -30 ], [ -50, 20 ]] as Point[]).entries()) {
+      fleet[index]!.position = toGeo(point); fleet[index]!.homePosition = toGeo(point);
+    }
+    const reassigned = planMissions(area, setting, fleet);
+    assert.deepEqual(reassigned.map((mission) => mission.droneId), fleet.map((drone) => drone.droneId));
+    assert.deepEqual(reassigned[0]!.assignedPolygon, original[1]!.assignedPolygon);
+    assert.deepEqual(reassigned[1]!.assignedPolygon, original[0]!.assignedPolygon);
+    assert.doesNotThrow(() => assertPlanningSafe(area, [], setting, reassigned, fleet));
+  } finally { runtime.dispose(); }
 });

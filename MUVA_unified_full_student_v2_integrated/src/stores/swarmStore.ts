@@ -10,7 +10,7 @@ import type { Point, SwarmCheck, SwarmConfig, SwarmResult, SwarmRun, SwarmSnapsh
 const key = 'muva-swarm-draft-v1';
 const recordsKey = 'muva-swarm-records-v1';
 const draftsKey = 'muva-swarm-saved-drafts-v1';
-const defaults: SwarmConfig = { count: 3, altitude: 30, speed: 7, spacing: 12, safety: 8, sceneId: 'campus-training', simulationMode: services.swarm.mode, worldFrame: 'ENU', sceneOrigin: campusOrigin };
+const defaults: SwarmConfig = { count: 3, altitude: 30, speed: 7, spacing: 12, safety: 3, sceneId: 'campus-training', simulationMode: services.swarm.mode, worldFrame: 'ENU', sceneOrigin: campusOrigin };
 const flightStates = ['TAKING_OFF', 'HOLDING', 'RUNNING', 'PAUSED', 'RETURNING'];
 const read = (): SwarmRun | null => {
   try {
@@ -69,7 +69,7 @@ interface SwarmState {
   check: () => void;
   navigate: (step: number) => void;
   command: (action: 'takeoff' | 'startMission' | 'pauseMission' | 'resumeMission' | 'returnToHome', droneId?: string) => void;
-  finish: () => void;
+  finish: () => Promise<void>;
   save: () => void;
   clearError: () => void;
   leave: () => void;
@@ -159,7 +159,7 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
         await runtime.shutdown();
       }
       const current = get().run;
-      if (current?.snapshot) {
+      if (current?.snapshot && !current.result) {
         const interrupted: SwarmRun = { ...current, snapshot: { ...current.snapshot, status: 'ABORTED', interrupted: true,
           runtime: current.snapshot.runtime ? { ...current.snapshot.runtime, sessionId: null, connected: false,
             error: '仿真已由操作员中止；未确认飞行器安全着陆' } : undefined,
@@ -326,12 +326,33 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
       if (pending instanceof Promise) { set({ busy: true }); await pending; }
       set({ error: null, busy: false }); }
     catch (error) { set({ busy: false, error: error instanceof Error ? error.message : '操作失败' }); } },
-  finish: () => { const run = get().run; if (!run?.snapshot) return;
-    if (run.snapshot.interrupted) { const snapshot: SwarmSnapshot = { ...run.snapshot, status: 'ABORTED', events: [...run.snapshot.events, '页面刷新中断模拟运行，无法确认飞行已完成'] }; const next = { ...run, snapshot, result: scoreSwarm({ ...run, snapshot }), step: 6 }; persist(next); set({ run: next }); return; }
-    if (flightStates.includes(run.snapshot.status) && !run.snapshot.drones.every((drone) => drone.state === 'LANDED')) {
-      ending = true; if (run.snapshot.status !== 'RETURNING') get().command('returnToHome'); return;
+  finish: async () => {
+    const run = get().run;
+    if (!run?.snapshot || run.result) return;
+    if (run.snapshot.interrupted) {
+      const snapshot: SwarmSnapshot = { ...run.snapshot, status: 'ABORTED', events: [...run.snapshot.events, '实验会话已中断，无法确认飞行已完成'] };
+      const next = { ...run, snapshot, result: scoreSwarm({ ...run, snapshot }), step: 6 };
+      persist(next); set({ run: next }); return;
     }
-    runtime.stop(); const result = scoreSwarm(run); const next = { ...run, result, step: 6 }; persist(next); set({ run: next });
+    if ([...flightStates, 'FAILED'].includes(run.snapshot.status) && !run.snapshot.drones.every((drone) => drone.state === 'LANDED' && drone.armed !== true)) {
+      ending = true;
+      if (run.snapshot.status !== 'RETURNING') get().command('returnToHome');
+      return;
+    }
+    runtime.stop();
+    const next = { ...run, result: scoreSwarm(run), step: 6 };
+    persist(next); set({ run: next, busy: true });
+    try {
+      await runtime.shutdown(run.snapshot.runtime?.sessionId ?? undefined);
+      const current = get().run;
+      if (current?.id === run.id && current.snapshot?.runtime) {
+        const closed = { ...current, snapshot: { ...current.snapshot, runtime: { ...current.snapshot.runtime, sessionId: null, connected: false, error: null } } };
+        persist(closed); set({ run: closed });
+      }
+      set({ busy: false });
+    } catch (error) {
+      set({ busy: false, error: `实验结果已保留，仿真清理未完成，可使用“中止并回收 SITL 仿真”：${error instanceof Error ? error.message : '未知错误'}` });
+    }
   },
   save: () => { const run = get().run; if (!run?.result) return;
     try { localStorage.setItem(recordsKey, JSON.stringify([run.result, ...savedSwarmRecords().filter((item) => item.runId !== run.id)])); set({ error: null }); }

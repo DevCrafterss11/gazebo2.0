@@ -82,7 +82,7 @@ export function checkMissionPlan(run: SwarmRun): SwarmCheck[] {
     if (!run.area || !run.missions.length) throw new Error('请先生成航线');
     assertPlanningSafe(run.area, run.planning?.noFlyZones ?? [], run.config, run.missions, fleet);
   });
-  check('安全间距', '作业带隔离，逐机入场、并行覆盖、逐机返航，等待点避让', () => {
+  check('安全间距', '作业带隔离，多机独立并行，交叉航段自动避让并校验可放行性', () => {
     const positions = fleet.map((drone) => toLocal(drone.homePosition));
     if (!Number.isFinite(run.config.safety) || !Number.isFinite(run.config.spacing) || run.config.safety < 3 || run.config.spacing < run.config.safety
       || positions.some((point, index) => positions.slice(index + 1).some((other) => distance(point, other) < run.config.safety - .01))) throw new Error('初始间距或航线间距不满足安全设置');

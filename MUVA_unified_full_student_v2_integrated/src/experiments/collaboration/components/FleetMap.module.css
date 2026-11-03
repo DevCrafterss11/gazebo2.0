@@ -1,0 +1,117 @@
+/* One HUD layout shared by the embedded, expanded and live maps. */
+.canvas.canvas { isolation: isolate; }
+.canvas[data-layer=coordinates] { background: #102f3c; }
+.tools { position: absolute; z-index: 4; top: 12px; right: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 38px; padding: 0; }
+.canvas[data-presentation=task] .tools { top: 64px; }
+.canvas[data-presentation=live] .tools { top: 64px; }
+.tools button { display: grid; place-items: center; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 4px; color: #d5e9ed; background: transparent; cursor: pointer; }
+.tools button:hover, .tools button[aria-pressed=true] { background: #21525d; color: #91f0d8; }
+.tools button:focus-visible { outline: 2px solid #79e3d0; }
+.info { position: absolute; z-index: 3; left: 12px; right: 64px; display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border: 1px solid #416874; border-radius: 6px; color: #c8e0e5; background: #082b38ed; font-size: 12px; }
+.info > div:empty { display: none; }
+.status { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 14px; min-width: 0; line-height: 1.5; }
+.status small { color: #e9c993; font-size: 12px; }
+.status label { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.status select { border: 1px solid #49727d; color: #e1f4f2; background: #113943; padding: 3px; border-radius: 4px; }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.scale { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; font-size: 11px; }
+.scale b { display: inline-block; min-width: 15px; border: solid #d6efef; border-width: 0 1px 2px; text-align: center; font-weight: 500; padding-bottom: 1px; }
+.legend { font-size: 12px; color: #a6cbd2; }
+.grid { position: absolute; inset: 0; pointer-events: none; }
+.grid line { stroke: #6197aa; stroke-opacity: .27; shape-rendering: crispEdges; }
+.grid line[data-origin=true] { stroke: #75c9ce; stroke-opacity: .65; }
+.grid text { fill: #accbd5; font-size: 11px; stroke: #102f3c; stroke-width: 3px; paint-order: stroke; font-variant-numeric: tabular-nums; }
+.canvas [data-popup=true]:not([role=status]) { overflow-y: auto; overscroll-behavior: contain; z-index: 8; }
+.canvas :global(.maplibregl-ctrl-bottom-right) { bottom: calc(var(--map-footer-height, 0px) + 4px); right: 68px; max-width: calc(100% - 80px); z-index: 4; }
+@media (max-width: 760px) {
+  .tools { right: 8px; padding: 3px; gap: 1px; }
+  .tools button { width: 32px; height: 29px; min-height: 29px; }
+  .info { left: 8px; right: 54px; padding: 6px 8px; }
+  .legend { display: none; }
+  .status small { display: none; }
+  .status label { margin-left: 0; }
+}
+@media (max-height: 650px) and (min-width: 761px) {
+  .canvas[data-presentation=task] .tools { top: 63px; }
+  .tools { gap: 1px; padding: 3px; }
+  .tools button { height: 28px; min-height: 28px; }
+}
+
+.canvas :global(.maplibregl-ctrl-attrib-inner) { white-space: normal; overflow-wrap: anywhere; }
+
+/* The command HUD is a compact instrument card, not a full-width banner. Live view retains its own layout. */
+.canvas[data-presentation=task] .info { right: auto; width: max-content; max-width: min(540px, calc(100% - 82px)); box-shadow: 0 8px 24px #001b2a80; }
+.canvas[data-presentation=task] .status label { margin-left: 0; }
+.canvas[data-presentation=task] .footer { gap: 5px 14px; }
+.canvas[data-presentation=task] .legend { max-width: 270px; line-height: 1.4; }
+@media (max-width: 760px) { .canvas[data-presentation=task] .info { max-width: calc(100% - 72px); } }
+
+/* Experiment-3 independent copy of experiment-2 transparent quadrotor symbol.
+   Labels and state badges are absolute: never shift the geographic anchor. */
+.canvas .aircraft { position: absolute; display: block; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: transparent; color: var(--aircraft-color); transform: translate(-50%, -50%); cursor: pointer; box-shadow: none; }
+.airframe { position: absolute; inset: 1px; display: block; filter: drop-shadow(0 1px 1px #fff) drop-shadow(0 0 2px #fff); }
+.airframe svg { display: block; }
+.airframe i { position: absolute; left: 12px; top: -5px; width: 0; height: 0; border: 3px solid transparent; border-bottom: 5px solid currentColor; }
+.aircraft b { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); padding: 1px 4px; border-radius: 3px; background: #f7fcffef; color: #17475c; font: 600 10px/14px system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 3px #112c3d30; pointer-events: none; }
+.aircraft small { position: absolute; width: 6px; height: 6px; top: 0; right: 0; border-radius: 50%; border: 1px solid #fff; background: var(--aircraft-color); pointer-events: none; }
+.canvas .aircraft[aria-pressed=true] { outline: 2px solid #1677ad; outline-offset: 3px; background: #d8f4ff50; }
+.canvas .aircraft:focus-visible { outline: 2px solid #1677ad; outline-offset: 4px; }
+.canvas[data-layer=coordinates] .airframe { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff); }
+.canvas[data-layer=vector] { background: #edf1ef; }
+.canvas .aircraft:hover:not(:disabled) { color: var(--aircraft-color); background: #d8f4ff50; border: 0; }
+.measurement { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.measurement line { stroke: #2a7898; stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
+.measurement text { fill: #215c76; font: 600 11px system-ui, sans-serif; stroke: #f4fcff; stroke-width: 4px; paint-order: stroke; }
+/* Map-only tools never resize the canvas or change mission business state. */
+.canvas[data-presentation=task] .info { left: 326px; right: auto; max-width: min(530px, calc(100% - 405px)); padding: 7px 10px; font-size: 11px; box-shadow: 0 4px 14px #00172425; }
+.canvas[data-presentation=task] .info .status { gap: 4px 10px; }
+.canvas[data-presentation=task] .info .status select { padding: 3px 5px; font-size: 11px; }
+.canvas[data-presentation=task] .legend { font-size: 10px; }
+.layerPanel, .surveyInfo { position: absolute; z-index: 7; right: 64px; top: 128px; width: 254px; padding: 12px; background: #092c39f7; color: #def0f4; border: 1px solid #456674; border-radius: 8px; box-shadow: 0 8px 24px #00172435; font-size: 12px; }
+.layerPanel header, .surveyInfo header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+.layerPanel header button, .surveyInfo header button { padding: 3px; min-height: 24px; border: 0; background: transparent; }
+.layerPanel label { display: flex; align-items: center; gap: 9px; padding: 9px 3px; color: #d4e8ed; cursor: pointer; }
+.layerPanel input { accent-color: #64c9d0; }
+.layerPanel small, .surveyInfo small { color: #a6c2cb; font-size: 11px; line-height: 1.6; }
+.canvas .basemapOption { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 10px; margin-top: 6px; gap: 4px; border-color: #355966; background: #133846; }
+.canvas .basemapOption[aria-pressed=true] { border-color: #6cc8d0; background: #1b4b57; }
+.surveyInfo { top: auto; bottom: calc(var(--map-footer-height, 0px) + var(--map-hud-height, 75px) + 42px); }
+.surveyInfo p { font-variant-numeric: tabular-nums; line-height: 1.7; margin: 7px 0; }
+.surveyInfo strong { font-size: 24px; color: #8ce0e4; }
+.surveyDrawing { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.surveyDrawing circle { fill: #f5faff; stroke: #167eab; stroke-width: 3; }
+.surveyDrawing line { stroke: #167eab; stroke-width: 2; stroke-dasharray: 6 3; }
+.canvas .vertex { position: absolute; display: grid; place-items: center; width: 23px; height: 23px; min-height: 23px; padding: 0; border: 2px solid #e5fbff; border-radius: 50%; background: #155f88; color: #fff; font: 600 11px/1 system-ui; cursor: move; touch-action: none; box-shadow: 0 1px 5px #00243a60; }
+.canvas .vertex:disabled { opacity: 1; cursor: default; }
+.canvas .vertex:focus-visible { outline: 2px solid #0a6092; outline-offset: 3px; }
+@media (max-width: 760px) {
+  .canvas[data-presentation=task] .info { left: 9px; max-width: calc(100% - 73px); }
+  .layerPanel, .surveyInfo { width: min(254px, calc(100% - 78px)); }
+}
+.canvas .vertex { pointer-events: auto; }
+
+/* Native navigation is deliberately not restyled into an application icon rail. */
+.nativeNavigation :global(.maplibregl-ctrl) { margin: 0; float: none; }
+.canvas .nativeNavigation :global(button) { width: 36px; height: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 0; background-color: #fff; display: block; }
+.canvas .nativeNavigation :global(button:hover) { background-color: #f0f3f5; }
+.canvas .nativeNavigation :global(.maplibregl-ctrl-group) { border-radius: 5px; overflow: hidden; box-shadow: 0 2px 8px #052b3c35; }
+.canvas .nativeNavigation :global(button + button) { border-top: 1px solid #d7dee2; }
+.canvas .nativeNavigation :global(.maplibregl-ctrl-icon) { display: block; width: 100%; height: 100%; }
+.mapShortcuts { display: grid; border: 1px solid #56737e; border-radius: 5px; overflow: hidden; box-shadow: 0 2px 8px #052b3c25; }
+.canvas .mapShortcuts button { width: 36px; height: 32px; min-height: 32px; padding: 0; font: 11px/1.2 system-ui; border: 0; border-radius: 0; color: #e1f0f2; background: #103643f5; }
+.canvas .mapShortcuts button + button { border-top: 1px solid #3d5b68; }
+.canvas .mapShortcuts button:hover, .canvas .mapShortcuts button[aria-expanded=true] { background: #245661; }
+.toolHint { margin: 0 0 10px; color: #a8c1ca; line-height: 1.5; font-size: 11px; }
+.toolOptions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 12px; }
+.canvas .toolOptions button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 56px; padding: 9px; border: 1px solid #385867; border-radius: 5px; background: #143845; color: #e2f1f4; font: 12px/1.4 system-ui; }
+.toolOptions button span { font-size: 10px; color: #acc6ce; white-space: nowrap; }
+.canvas .toolOptions button[aria-pressed=true] { border-color: #59a8b3; background: #1e4853; }
+.canvas[data-presentation=live] .info { left: 14px; right: auto; max-width: min(530px, calc(100% - 88px)); padding: 8px 10px; font-size: 11px; }
+.canvas[data-presentation=live] .info .status { gap: 5px 10px; }
+.canvas[data-presentation=live] .legend { font-size: 10px; }
+.canvas .airframe svg { width: 30px; height: 30px; flex-shrink: 0; stroke: currentColor; }
+
+/* Dense labels keep exact marker centers and reveal full identity through accessible name / hover. */
+.aircraft[data-label-density=compact] b,.aircraft[data-label-density=minimal] b { padding-inline:3px; font-size:9px; }
+.aircraft[data-label-density=minimal]:not([aria-pressed=true]):not(:hover):not(:focus-visible) b { visibility:hidden; }
+.aircraft em { position: absolute; left: 35px; top: 7px; padding: 1px 4px; background: #f5fcffed; color: #145964; border-radius: 3px; font: 600 10px/14px system-ui,sans-serif; white-space: nowrap; pointer-events: none; }

@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>实验三 · 无人机资源管理 · 单层面板原型</title>
+<style>
+  :root {
+    --bg: #0a1d29; --panel: #0e2a3a; --panel2: #123547; --line: #24556f; --line2: #1b4258;
+    --text: #e6f3f7; --muted: #8fb0bd; --teal: #3fd4c0; --amber: #f2ba62; --red: #ff6b7a; --blue: #4dc7ff; --violet: #b99cf3;
+    --recon: #4dc7ff; --transport: #f2ba62; --relay: #b99cf3;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 14px/1.5 system-ui, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; color: var(--text); background: var(--bg); overflow: hidden; }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  /* 仅用于演示：模拟地图背景 */
+  .stage { position: fixed; inset: 0; background:
+    radial-gradient(circle at 30% 40%, #14384b 0 22%, transparent 23%),
+    repeating-linear-gradient(0deg, #0d2431 0 38px, #0f2a39 38px 40px),
+    repeating-linear-gradient(90deg, transparent 0 38px, #0f2a39 38px 40px); }
+  .stage::after { content: "指挥台地图（演示背景）"; position: absolute; left: 24px; bottom: 18px; color: #4d7589; font-size: 12px; }
+  .proto-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 5; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding: 8px 16px; background: #3a2a0d; color: #ffe2a2; border-bottom: 1px solid #7a5a1c; font-size: 12.5px; }
+  .proto-bar b { color: #fff0c3; }
+  .proto-bar label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .proto-bar button { background: transparent; border: 1px solid #a98133; border-radius: 4px; padding: 2px 10px; color: #ffe2a2; }
+
+  .scrim { position: fixed; inset: 0; background: rgba(3, 12, 18, .55); display: grid; place-items: center; padding: 44px 16px 12px; }
+  .panel { width: min(1080px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 24px 60px rgba(0,0,0,.5); overflow: hidden; }
+  .panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 20px 10px; }
+  .panel h1 { margin: 0; font-size: 18px; }
+  .panel header p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+  .iconbtn { background: transparent; border: 1px solid var(--line); border-radius: 6px; width: 32px; height: 32px; display: grid; place-items: center; }
+  .iconbtn:hover { background: var(--panel2); }
+
+  .fleet { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 20px 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); font-size: 12.5px; color: var(--text); white-space: nowrap; }
+  .chip svg { width: 14px; height: 14px; }
+  .t-recon { --c: var(--recon); } .t-transport { --c: var(--transport); } .t-relay { --c: var(--relay); }
+  .chip.type { border-color: color-mix(in srgb, var(--c) 55%, transparent); color: var(--c); }
+  .chip.payload { color: var(--text); }
+
+  /* 兜底：任何未单独设置尺寸的图标都不能撑大 */
+  svg { width: 16px; height: 16px; flex: none; }
+  .viewbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 20px 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; padding: 5px 16px; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: #17695f; color: #fff; font-weight: 600; }
+  .viewbar .hint { color: var(--muted); font-size: 12.5px; }
+  .drow { display: grid; grid-template-columns: 96px 188px 118px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--panel); }
+  .drow.has { border-color: #1f5f66; }
+  .drow .tchips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  .tchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  button.tchip:hover:not(:disabled) { border-color: var(--teal); color: var(--text); }
+  .tchip.on { border-style: solid; border-color: #1f9a8b; background: color-mix(in srgb, var(--teal) 14%, transparent); color: var(--text); }
+  .tchip.no { border-style: dotted; color: #b79a62; cursor: help; }
+  .dlist { display: grid; gap: 6px; }
+  .dhead { display: grid; grid-template-columns: 96px 188px 118px minmax(0, 1fr) auto; gap: 10px; padding: 0 12px 4px; color: var(--muted); font-size: 12px; }
+
+  /* 任务页签 */
+  .tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { position: relative; background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px 9px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--teal); font-weight: 600; }
+  .tab .count { font-size: 12px; padding: 0 7px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
+  .tab .warn { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+  .tab .ok { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+  .tab .run { font-size: 11px; color: var(--teal); }
+
+  .body { overflow: auto; padding: 14px 20px 6px; min-height: 0; flex: 1; }
+  .banner { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--line); background: var(--panel2); }
+  .banner.lock { border-color: #1f7a70; color: #b7f1e8; }
+  .banner.note { color: var(--muted); }
+
+  /* 需求条 */
+  .need { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 10px 12px; margin-bottom: 14px; }
+  .need-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .need-head h2 { margin: 0; font-size: 14px; }
+  .need-head label { font-size: 12.5px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  select { background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; }
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin: 10px 0 6px; }
+  .role { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--line2); border-radius: 6px; background: var(--panel); }
+  .role.filled { border-color: #1f7a70; }
+  .role.empty.primary { border-color: #8a6a24; }
+  .role b { font-weight: 600; }
+  .role small { color: var(--muted); display: block; font-size: 12px; }
+  .role .n { font-variant-numeric: tabular-nums; font-size: 13px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .role.filled .n { color: var(--teal); border-color: #1f7a70; }
+  .gap { margin: 8px 0 0; font-size: 13px; }
+  .gap.bad { color: var(--amber); }
+  .gap.good { color: var(--teal); }
+
+  /* 飞机分组 */
+  .group { margin-bottom: 14px; }
+  .group > h3, .group > summary { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; display: flex; gap: 8px; align-items: center; cursor: default; }
+  .group > summary { cursor: pointer; }
+  .group h3 em, .group summary em { font-style: normal; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; font-size: 12px; }
+  .rows { display: grid; gap: 6px; }
+  .row { display: grid; grid-template-columns: 96px 188px 118px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--panel); }
+  .row.member { border-color: #1f7a70; background: color-mix(in srgb, var(--teal) 7%, var(--panel)); }
+  .row.locked { opacity: .75; }
+  .row .id, .drow .id { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .row .id small, .drow .id small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; white-space: nowrap; }
+  [hidden] { display: none !important; }
+  .kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+  .state { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .state .bar { display: inline-block; width: 38px; height: 6px; border-radius: 3px; background: #0a1d29; border: 1px solid var(--line); vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .state .bar i { display: block; height: 100%; background: var(--teal); }
+  .note { font-size: 12.5px; color: var(--muted); min-width: 0; }
+  .note.bad { color: var(--amber); }
+  .note.lockmsg { color: var(--teal); }
+  .acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+  .btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--teal); }
+  .btn.primary { background: #17695f; border-color: #1f9a8b; }
+  .btn.danger:hover:not(:disabled) { border-color: var(--red); color: #ffb8c0; }
+  .btn.ghost { background: transparent; }
+  .role-select { max-width: 120px; }
+
+  /* 行内改装面板 */
+  .edit { grid-column: 1 / -1; margin-top: 4px; padding: 12px; border: 1px dashed var(--teal); border-radius: 8px; background: var(--bg); }
+  .edit h4 { margin: 0 0 8px; font-size: 13px; }
+  .edit .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  fieldset { border: 1px solid var(--line2); border-radius: 6px; margin: 0; padding: 8px 10px; }
+  legend { padding: 0 6px; color: var(--muted); font-size: 12.5px; }
+  fieldset label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .impact { margin: 10px 0 0; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; border: 1px solid var(--line2); background: var(--panel); }
+  .impact.warn { border-color: #8a6a24; color: #ffe2a2; }
+  .impact ul { margin: 4px 0 0 18px; padding: 0; }
+  .edit .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+  details.rules { margin: 0 0 6px; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 12px; }
+  details.rules summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0 4px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line2); }
+  th { color: var(--muted); font-weight: 600; }
+
+  .panel > footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 20px; border-top: 1px solid var(--line); background: var(--panel2); }
+  .panel footer .msg { min-height: 20px; font-size: 13px; color: var(--teal); }
+  .panel footer small { display: block; color: var(--muted); font-size: 12px; }
+  .panel footer .right { display: flex; gap: 8px; }
+
+  @media (max-width: 900px) {
+    .row { grid-template-columns: 1fr auto; }
+    .row .state, .row .note { grid-column: 1 / -1; }
+    .edit .cols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="stage" aria-hidden="true"></div>
+<div class="proto-bar">
+  <span><b>设计原型</b>：数据为演示数据，不连接项目代码。可以点击页签、加入/移出、改装。</span>
+  <label><input type="checkbox" id="demoRun"> 演示：区域巡逻正在执行（这些飞机被占用）</label>
+  <button type="button" id="demoReset">还原演示数据</button>
+</div>
+
+<div class="scrim">
+  <section class="panel" role="dialog" aria-labelledby="ttl" aria-modal="true">
+    <header>
+      <div>
+        <h1 id="ttl">无人机资源管理</h1>
+        <p>一次只配置一个任务：选页签，再选参与的飞机。载荷和类型决定飞机能坐哪个岗位。</p>
+      </div>
+      <button class="iconbtn" type="button" aria-label="关闭资源管理" id="closeBtn">✕</button>
+    </header>
+    <div class="fleet" id="fleet" aria-label="机队概况"></div>
+    <div class="viewbar">
+      <div class="seg" role="group" aria-label="查看方式">
+        <button type="button" data-view="task" aria-pressed="true">按任务配置</button>
+        <button type="button" data-view="drone" aria-pressed="false">按无人机顺序</button>
+      </div>
+      <span class="hint" id="viewHint"></span>
+    </div>
+    <div class="tabs" role="tablist" aria-label="按任务配置" id="tabs"></div>
+    <div class="body" id="body" role="tabpanel"></div>
+    <footer>
+      <div>
+        <div class="msg" id="msg" role="status" aria-live="polite">配置自动保存至本机浏览器</div>
+        <small>仅教学模拟，不连接真实飞控。改动参与飞机后需重新生成相关航线。</small>
+      </div>
+      <div class="right">
+        <button class="btn" type="button" id="resetBtn">恢复初始编组配置</button>
+        <button class="btn primary" type="button" id="doneBtn">完成配置</button>
+      </div>
+    </footer>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 图标（简化线条） ---------- */
+  var ICON = {
+    '侦察': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>',
+    '运输': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
+    '中继': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12a10 10 0 0 1 14 0M8 15a6 6 0 0 1 8 0"/><circle cx="12" cy="18.5" r="1.2"/></svg>',
+    '摄像头': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>',
+    '抛投器': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="8" rx="1.5"/><path d="M12 11v8M8.5 16l3.5 3.5 3.5-3.5"/></svg>'
+  };
+  var TYPE_CLASS = { '侦察': 't-recon', '运输': 't-transport', '中继': 't-relay' };
+
+  /* ---------- 岗位需求表：界面、校验、示例载入都读这一张表 ---------- */
+  var TASKS = [
+    { id: 'patrol', name: '区域巡逻', roles: [
+      { name: '领航机', type: '侦察', payload: '摄像头', primary: true },
+      { name: '协同机', type: '侦察', payload: '摄像头' },
+      { name: '侦察机', type: '侦察', payload: '摄像头' } ] },
+    { id: 'search', name: '目标搜索', roles: [
+      { name: '搜索机', type: '侦察', payload: '摄像头', primary: true },
+      { name: '协同机', type: '侦察', payload: '摄像头' },
+      { name: '中继机', type: '中继', payload: null } ] },
+    { id: 'monitor', name: '定点监测', roles: [
+      { name: '监测机', type: '侦察', payload: '摄像头', primary: true },
+      { name: '协同机', type: '侦察', payload: '摄像头' },
+      { name: '交接机', type: '侦察', payload: '摄像头' } ] },
+    { id: 'transport', name: '物资运输', roles: [
+      { name: '运输机', type: '运输', payload: '抛投器', primary: true },
+      { name: '协同机', type: '运输', payload: '抛投器' },
+      { name: '护航机', type: '中继', payload: null } ] },
+    { id: 'rescue', name: '应急救援', roles: [
+      { name: '救援机', type: '运输', payload: '抛投器', primary: true },
+      { name: '侦察机', type: '侦察', payload: '摄像头' },
+      { name: '中继机', type: '中继', payload: null } ] }
+  ];
+  var TASK = {}; TASKS.forEach(function (t) { TASK[t.id] = t; });
+
+  /* ---------- 初始数据 ---------- */
+  function initialDrones() {
+    var list = [];
+    for (var i = 101; i <= 115; i++) {
+      var type = i <= 109 ? '侦察' : i <= 112 ? '运输' : '中继';
+      var payload = type === '运输' ? '抛投器' : '摄像头';
+      list.push({ id: 'uav' + i, type: type, payload: payload, battery: 88 + (i * 7) % 11 });
+    }
+    // 演示用的“错配”样例：类型和载荷各自独立，错配的飞机会被多数岗位拒绝
+    list[6].payload = '抛投器';   // uav107 侦察 + 抛投器
+    list[10].payload = '摄像头';  // uav111 运输 + 摄像头
+    return list;
+  }
+  function initialDrafts() {
+    return {
+      patrol: [['uav101', '领航机'], ['uav103', '协同机'], ['uav105', '侦察机']],
+      search: [['uav104', '搜索机'], ['uav102', '协同机'], ['uav113', '中继机']],
+      monitor: [['uav106', '监测机'], ['uav108', '协同机'], ['uav109', '交接机']],
+      transport: [['uav110', '运输机'], ['uav112', '协同机'], ['uav114', '护航机']],
+      rescue: [['uav112', '救援机'], ['uav106', '侦察机'], ['uav115', '中继机']]
+    };
+  }
+  var state = {
+    drones: initialDrones(),
+    drafts: initialDrafts(),     // taskId -> [[droneId, roleName], ...]
+    tab: 'patrol',
+    view: 'task',                // 'task' 按任务配置 | 'drone' 按无人机顺序
+    running: null,               // 演示：正在执行的任务 id
+    edit: null,                  // { id, type, payload }
+    strategy: { search: '双机确认', rescue: '先侦察后救援' },
+    msg: '配置自动保存至本机浏览器'
+  };
+
+  /* ---------- 规则 ---------- */
+  function fitsRole(d, r) { return d.type === r.type && (r.payload === null || d.payload === r.payload); }
+  function fitRoles(d, task) { return task.roles.filter(function (r) { return fitsRole(d, r); }); }
+  function roleOf(task, name) { return task.roles.filter(function (r) { return r.name === name; })[0]; }
+  function drone(id) { return state.drones.filter(function (d) { return d.id === id; })[0]; }
+  function members(taskId) { return state.drafts[taskId]; }
+  function memberRole(taskId, id) { var m = members(taskId).filter(function (x) { return x[0] === id; })[0]; return m ? m[1] : null; }
+  function lockedBy(id) {            // 演示：正在执行的任务占用其成员
+    if (state.running && memberRole(state.running, id)) return state.running;
+    return null;
+  }
+  function otherDrafts(id, taskId) {
+    return TASKS.filter(function (t) { return t.id !== taskId && memberRole(t.id, id); }).map(function (t) { return t.name; });
+  }
+  function autoRole(d, task) {       // 主岗优先，其次第一个能坐的岗位
+    var fits = fitRoles(d, task);
+    var primary = fits.filter(function (r) { return r.primary; })[0];
+    var hasPrimary = members(task.id).some(function (m) { var r = roleOf(task, m[1]); return r && r.primary; });
+    if (primary && !hasPrimary) return primary.name;
+    var other = fits.filter(function (r) { return !r.primary; })[0];
+    return (other || fits[0]).name;
+  }
+  function reasonNotFit(d, task) {
+    var types = []; task.roles.forEach(function (r) { if (types.indexOf(r.type) < 0) types.push(r.type); });
+    var sameType = task.roles.filter(function (r) { return r.type === d.type; });
+    if (!sameType.length) return '本任务岗位需要 ' + types.join(' / ') + ' 类型，该机是 ' + d.type + '类型';
+    var need = sameType.filter(function (r) { return r.payload; })[0];
+    return '类型对，但载荷不符：' + need.name + '需要' + need.payload + '，当前是' + d.payload;
+  }
+  function suggestion(task) {        // 一键修正：按主岗配置
+    var p = task.roles.filter(function (r) { return r.primary; })[0];
+    return { type: p.type, payload: p.payload || '摄像头' };
+  }
+  function gaps(task) {              // 与“生成航线”前的执行校验使用同一口径
+    var list = [], ms = members(task.id).map(function (m) { return m[1]; });
+    var primary = task.roles.filter(function (r) { return r.primary; })[0];
+    if (!ms.length) { list.push('还没有选择参与飞机'); return list; }
+    if (ms.indexOf(primary.name) < 0) list.push('缺少主岗：' + primary.name);
+    if (task.id === 'search' && state.strategy.search === '双机确认') {
+      var obs = ms.filter(function (n) { return n === '搜索机' || n === '协同机'; }).length;
+      if (obs < 2) list.push('双机确认还差 ' + (2 - obs) + ' 架观测机（搜索机或协同机，需摄像头）');
+    }
+    if (task.id === 'rescue' && state.strategy.rescue === '先侦察后救援' && ms.indexOf('侦察机') < 0) list.push('先侦察后救援还差 1 架侦察机（侦察类型 + 摄像头）');
+    return list;
+  }
+
+  /* ---------- 渲染 ---------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function kinds(d) {
+    return '<span class="kinds"><span class="chip type ' + TYPE_CLASS[d.type] + '">' + ICON[d.type] + d.type + '</span>' +
+      '<span class="chip payload">' + ICON[d.payload] + d.payload + '</span></span>';
+  }
+  function stateCell(d) {
+    return '<span class="state"><span class="bar"><i style="width:' + d.battery + '%"></i></span>' + d.battery + '% · 待命</span>';
+  }
+
+  function renderFleet() {
+    var c = { '侦察': 0, '运输': 0, '中继': 0, '摄像头': 0, '抛投器': 0 };
+    state.drones.forEach(function (d) { c[d.type]++; c[d.payload]++; });
+    document.getElementById('fleet').innerHTML =
+      ['侦察', '运输', '中继'].map(function (t) { return '<span class="chip type ' + TYPE_CLASS[t] + '">' + ICON[t] + t + ' ' + c[t] + '</span>'; }).join('') +
+      '<span class="chip payload">' + ICON['摄像头'] + '摄像头 ' + c['摄像头'] + '</span><span class="chip payload">' + ICON['抛投器'] + '抛投器 ' + c['抛投器'] + '</span>' +
+      '<span class="chip">共 ' + state.drones.length + ' 架</span>';
+  }
+  function renderTabs() {
+    document.getElementById('tabs').innerHTML = TASKS.map(function (t) {
+      var ok = gaps(t).length === 0, running = state.running === t.id;
+      return '<button class="tab" role="tab" id="tab-' + t.id + '" data-tab="' + t.id + '" aria-selected="' + (state.tab === t.id) + '" tabindex="' + (state.tab === t.id ? 0 : -1) + '">' +
+        esc(t.name) + '<span class="count" aria-label="已加入 ' + members(t.id).length + ' 架">' + members(t.id).length + '</span>' +
+        (running ? '<span class="run">执行中</span>' : ok ? '<span class="ok" title="编组完整"></span>' : '<span class="warn" title="编组有缺口"></span>') + '</button>';
+    }).join('');
+  }
+
+  function needBar(task) {
+    var strategy = '';
+    if (task.id === 'search') strategy = '<label>目标确认条件 <select data-strategy="search"><option' + (state.strategy.search === '双机确认' ? ' selected' : '') + '>双机确认</option><option' + (state.strategy.search === '单机确认' ? ' selected' : '') + '>单机确认</option></select></label>';
+    if (task.id === 'rescue') strategy = '<label>救援策略 <select data-strategy="rescue"><option' + (state.strategy.rescue === '先侦察后救援' ? ' selected' : '') + '>先侦察后救援</option><option' + (state.strategy.rescue === '优先响应' ? ' selected' : '') + '>优先响应</option></select></label>';
+    var roles = task.roles.map(function (r) {
+      var n = members(task.id).filter(function (m) { return m[1] === r.name; }).length;
+      var need = r.type + (r.payload ? ' + ' + r.payload : ' · 载荷不限');
+      return '<div class="role ' + (n ? 'filled' : 'empty') + (r.primary ? ' primary' : '') + '"><div><b>' + (r.primary ? '★ ' : '') + esc(r.name) + '</b><small>需要：' + need + '</small></div><span class="n" title="已加入该岗位的飞机数">' + n + '</span></div>';
+    }).join('');
+    var g = gaps(task);
+    return '<section class="need" aria-label="本任务岗位需求"><div class="need-head"><h2>' + esc(task.name) + ' · 岗位需求</h2>' + strategy + '</div>' +
+      '<div class="roles">' + roles + '</div>' +
+      (g.length ? '<p class="gap bad" role="status">缺口：' + g.map(esc).join('；') + '</p>' : '<p class="gap good" role="status">编组完整，可以生成航线。</p>') + '</section>';
+  }
+
+  function editPanel(d, task) {
+    var e = state.edit, types = ['侦察', '运输', '中继'], payloads = ['摄像头', '抛投器'];
+    var changed = e.type !== d.type || e.payload !== d.payload;
+    var after = { type: e.type, payload: e.payload };
+    var effects = [];
+    TASKS.forEach(function (t) {
+      var role = memberRole(t.id, d.id);
+      if (!role || state.running === t.id) return;
+      var fits = fitRoles(after, t);
+      var current = roleOf(t, role);
+      if (!fits.length) effects.push('退出 <b>' + esc(t.name) + '</b>（原岗位：' + esc(role) + '）');
+      else if (!fitsRole(after, current)) effects.push('<b>' + esc(t.name) + '</b> 岗位改为 ' + esc(fits[0].name));
+    });
+    var radios = function (name, list, value) {
+      return list.map(function (v) { return '<label><input type="radio" name="' + name + '" value="' + v + '"' + (v === value ? ' checked' : '') + '> ' + ICON[v] + ' ' + v + '</label>'; }).join('');
+    };
+    var mismatch = !!task && fitRoles(after, task).length === 0 && changed;
+    return '<div class="edit" role="group" aria-label="改装 ' + d.id + '"><h4>改装 ' + d.id + '（全局生效，会影响它在其他任务里的资格）</h4>' +
+      '<div class="cols"><fieldset><legend>无人机类型</legend>' + radios('etype', types, e.type) + '</fieldset>' +
+      '<fieldset><legend>载荷</legend>' + radios('epay', payloads, e.payload) + '</fieldset></div>' +
+      (changed ? '<p class="impact ' + (effects.length || mismatch ? 'warn' : '') + '">' +
+        (effects.length ? '确认后将：<ul><li>' + effects.join('</li><li>') + '</li></ul>' : '不影响其他任务草稿。') +
+        (mismatch ? '<br>注意：改装后的 ' + e.type + ' + ' + e.payload + ' 仍坐不了「' + esc(task.name) + '」的任何岗位。' : '') + '</p>' : '<p class="impact">选择新的类型或载荷。侦察 + 抛投器这类组合允许存在，但多数岗位会拒绝它。</p>') +
+      '<div class="foot"><button class="btn ghost" type="button" data-act="edit-cancel">取消</button><button class="btn primary" type="button" data-act="edit-apply"' + (changed ? '' : ' disabled') + '>确认改装</button></div></div>';
+  }
+
+  function memberRow(d, task) {
+    var role = memberRole(task.id, d.id), lock = lockedBy(d.id), fits = fitRoles(d, task);
+    var sel = '<select class="role-select" data-role="' + d.id + '" aria-label="' + d.id + ' 的岗位"' + (lock ? ' disabled' : '') + '>' + fits.map(function (r) { return '<option' + (r.name === role ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') + '</select>';
+    var others = otherDrafts(d.id, task.id);
+    return '<div class="row member' + (lock ? ' locked' : '') + '"><span class="id">' + d.id + '<small>已加入</small></span>' + kinds(d) + stateCell(d) +
+      '<span class="note ' + (lock ? 'lockmsg' : '') + '">' + (lock ? '任务执行中，已被占用，不能移出或改装' : (others.length ? '同时也在草稿：' + others.join('、') : (fitRoles(d, task).length > 1 ? '可在多个岗位间切换' : '只能担任此岗位'))) + '</span>' +
+      '<span class="acts">' + (lock ? '' : sel) + '<button class="btn danger" type="button" data-act="remove" data-id="' + d.id + '" aria-label="将 ' + d.id + ' 移出' + esc(task.name) + '"' + (lock ? ' disabled' : '') + '>移出</button></span></div>';
+  }
+  function joinRow(d, task) {
+    var others = otherDrafts(d.id, task.id), fits = fitRoles(d, task), role = autoRole(d, task);
+    return '<div class="row"><span class="id">' + d.id + '<small>' + (others.length ? '在其他草稿' : '空闲') + '</small></span>' + kinds(d) + stateCell(d) +
+      '<span class="note">' + (others.length ? '已在草稿：' + others.join('、') + '（可同时选择，执行时才占用）' : '加入后担任：' + esc(role)) + '</span>' +
+      '<span class="acts"><button class="btn primary" type="button" data-act="join" data-id="' + d.id + '" aria-label="加入 ' + d.id + ' 为' + esc(role) + '">加入为 ' + esc(role) + '</button></span></div>';
+  }
+  function blockedRow(d, task) {
+    var lock = lockedBy(d.id);
+    if (lock) {
+      return '<div class="row locked"><span class="id">' + d.id + '<small>占用中</small></span>' + kinds(d) + stateCell(d) +
+        '<span class="note lockmsg">占用中：' + esc(TASK[lock].name) + '正在执行（飞机落地后自动释放）</span><span class="acts"><button class="btn" type="button" disabled>锁定</button></span></div>';
+    }
+    var s = suggestion(task);
+    var open = state.edit && state.edit.id === d.id;
+    return '<div class="row"><span class="id">' + d.id + '<small>不符合岗位</small></span>' + kinds(d) + stateCell(d) +
+      '<span class="note bad">' + esc(reasonNotFit(d, task)) + '</span>' +
+      '<span class="acts"><button class="btn" type="button" data-act="edit-open" data-id="' + d.id + '" data-type="' + s.type + '" data-pay="' + s.payload + '" aria-label="改装 ' + d.id + ' 为 ' + s.type + ' + ' + s.payload + '">改装为 ' + s.type + '·' + s.payload + '</button></span>' +
+      (open ? editPanel(d, task) : '') + '</div>';
+  }
+
+  function shortWhy(d, t) { return t.roles.some(function (r) { return r.type === d.type; }) ? '载荷不符' : '类型不符'; }
+  function droneRow(d) {
+    var lock = lockedBy(d.id), joined = 0;
+    var chips = TASKS.map(function (t) {
+      var role = memberRole(t.id, d.id), fits = fitRoles(d, t), run = state.running === t.id;
+      if (role) {
+        joined++;
+        return '<button class="tchip on" type="button" data-act="remove" data-id="' + d.id + '" data-task="' + t.id + '"' + (run ? ' disabled' : '') +
+          ' aria-label="将 ' + d.id + ' 移出' + esc(t.name) + '" title="' + (run ? '任务执行中，已占用' : '点击移出') + '">' + esc(t.name) + ' · ' + esc(role) + (run ? ' · 执行中' : ' ✕') + '</button>';
+      }
+      if (fits.length) {
+        return '<button class="tchip" type="button" data-act="join" data-id="' + d.id + '" data-task="' + t.id + '"' + (lock ? ' disabled' : '') +
+          ' aria-label="加入 ' + d.id + ' 为' + esc(t.name) + ' ' + esc(autoRole(d, t)) + '" title="加入后担任：' + esc(autoRole(d, t)) + '">+ ' + esc(t.name) + '</button>';
+      }
+      return '<span class="tchip no" tabindex="0" aria-label="' + esc(t.name) + '不可加入：' + esc(reasonNotFit(d, t)) + '" title="' + esc(reasonNotFit(d, t)) + '">' + esc(t.name) + ' · ' + shortWhy(d, t) + '</span>';
+    }).join('');
+    var open = state.edit && state.edit.id === d.id;
+    return '<div class="drow' + (joined ? ' has' : '') + '"><span class="id">' + d.id + '<small>' + (lock ? '占用中' : joined ? '已入编 ' + joined + ' 个任务' : '未入编') + '</small></span>' + kinds(d) + stateCell(d) +
+      '<span class="tchips">' + chips + '</span>' +
+      '<span class="acts"><button class="btn" type="button" data-act="edit-open" data-id="' + d.id + '" data-type="' + d.type + '" data-pay="' + d.payload + '" aria-expanded="' + !!open + '"' + (lock ? ' disabled title="任务执行中，不能改装"' : '') + '>' + (open ? '收起' : '改装') + '</button></span>' +
+      (open ? editPanel(d, null) : '') + '</div>';
+  }
+  function renderDroneView() {
+    var html = '<p class="banner note">按编号顺序查看全部 ' + state.drones.length + ' 架飞机。每架飞机右侧列出五个任务：实心表示已入编（点击移出），虚线表示可加入（点击加入），点线表示不适配并写明原因。点「改装」可修改类型和载荷。</p>';
+    if (state.running) html += '<p class="banner lock">「' + esc(TASK[state.running].name) + '」正在执行：其成员被占用，不能移出或改装。</p>';
+    html += '<div class="dhead" aria-hidden="true"><span>编号</span><span>类型 · 载荷</span><span>状态</span><span>参与任务（点击加入 / 移出）</span><span></span></div>';
+    html += '<div class="dlist">' + state.drones.map(droneRow).join('') + '</div>';
+    document.getElementById('body').removeAttribute('aria-labelledby');
+    document.getElementById('body').innerHTML = html;
+  }
+  function renderBody() {
+    if (state.view === 'drone') { renderDroneView(); return; }
+    var task = TASK[state.tab], running = state.running === task.id;
+    var inTask = members(task.id).map(function (m) { return drone(m[0]); });
+    var rest = state.drones.filter(function (d) { return !memberRole(task.id, d.id); });
+    var joinable = [], blocked = [];
+    rest.forEach(function (d) { (lockedBy(d.id) || !fitRoles(d, task).length ? blocked : joinable).push(d); });
+    var html = '';
+    if (running) html += '<p class="banner lock">「' + esc(task.name) + '」正在执行：成员被占用，本页只读。要调整请先终止任务或等待安全返航。</p>';
+    html += needBar(task);
+    html += '<section class="group"><h3>已加入本任务 <em>' + inTask.length + '</em></h3><div class="rows">' +
+      (inTask.length ? inTask.map(function (d) { return memberRow(d, task); }).join('') : '<p class="banner note">还没有飞机。从下面的「可加入」里选择。</p>') + '</div></section>';
+    html += '<section class="group"><h3>可加入 <em>' + joinable.length + '</em></h3><div class="rows">' +
+      (joinable.length ? joinable.slice(0, 3).map(function (d) { return joinRow(d, task); }).join('') : '<p class="banner note">没有可直接加入的飞机。展开下面的「不可加入」，按提示改装。</p>') + '</div>' +
+      (joinable.length > 3 ? '<details class="group" style="margin:6px 0 0"><summary>再显示 ' + (joinable.length - 3) + ' 架可加入</summary><div class="rows">' + joinable.slice(3).map(function (d) { return joinRow(d, task); }).join('') + '</div></details>' : '') + '</section>';
+    html += '<details class="group"' + (!joinable.length || state.edit ? ' open' : '') + '><summary>不可加入 <em>' + blocked.length + '</em>（每架都写明原因，不会无声置灰）</summary><div class="rows">' +
+      blocked.map(function (d) { return blockedRow(d, task); }).join('') + '</div></details>';
+    html += '<details class="rules"><summary>查看五个任务的岗位需求总表</summary><table><thead><tr><th>任务</th><th>岗位</th><th>类型</th><th>载荷</th></tr></thead><tbody>' +
+      TASKS.map(function (t) { return t.roles.map(function (r, i) { return '<tr><td>' + (i ? '' : esc(t.name)) + '</td><td>' + (r.primary ? '★ ' : '') + esc(r.name) + '</td><td>' + r.type + '</td><td>' + (r.payload || '不限') + '</td></tr>'; }).join(''); }).join('') +
+      '</tbody></table><small style="color:var(--muted)">★ 为主岗，必须至少有一架。摄像头、抛投器、中继都是教学资格标签，不代表真实传感器或链路仿真。</small></details>';
+    document.getElementById('body').setAttribute('aria-labelledby', 'tab-' + task.id);
+    document.getElementById('body').innerHTML = html;
+  }
+  function render() {
+    renderFleet(); renderTabs(); renderBody();
+    document.getElementById('tabs').hidden = state.view === 'drone';
+    document.getElementById('body').setAttribute('role', state.view === 'drone' ? 'region' : 'tabpanel');
+    document.querySelectorAll('[data-view]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-view') === state.view)); });
+    document.getElementById('viewHint').textContent = state.view === 'drone' ? '一架飞机一行：看它在各任务里的岗位，也可以直接加入、移出或改装。' : '一个页签一个任务：看这个任务需要什么岗位，再挑选飞机。';
+    document.getElementById('msg').textContent = state.msg;
+  }
+  function say(m) { state.msg = m; document.getElementById('msg').textContent = m; }
+
+  /* ---------- 动作 ---------- */
+  function join(id, taskId) {
+    var task = TASK[taskId || state.tab], d = drone(id);
+    if (!d || memberRole(task.id, id) || lockedBy(id) || !fitRoles(d, task).length) return;
+    var role = autoRole(d, task);
+    members(task.id).push([id, role]);
+    var g = gaps(task);
+    say(id + ' 已加入「' + task.name + '」，岗位：' + role + '。' + (g.length ? '剩余缺口：' + g.join('；') : '编组完整。'));
+  }
+  function remove(id, taskId) {
+    var task = TASK[taskId || state.tab];
+    if (lockedBy(id)) return;
+    state.drafts[task.id] = members(task.id).filter(function (m) { return m[0] !== id; });
+    // 主岗被移出时，重选一架能坐主岗的成员（规则：只在能坐时补位，否则留缺口）
+    var primary = task.roles.filter(function (r) { return r.primary; })[0];
+    if (state.drafts[task.id].length && !state.drafts[task.id].some(function (m) { return m[1] === primary.name; })) {
+      var cand = state.drafts[task.id].filter(function (m) { return fitsRole(drone(m[0]), primary); })[0];
+      if (cand) cand[1] = primary.name;
+    }
+    var g = gaps(task);
+    say(id + ' 已移出「' + task.name + '」。' + (g.length ? '缺口：' + g.join('；') : ''));
+  }
+  function applyEdit() {
+    var e = state.edit, d = drone(e.id), moved = [];
+    d.type = e.type; d.payload = e.payload;
+    TASKS.forEach(function (t) {
+      var role = memberRole(t.id, d.id);
+      if (!role || state.running === t.id) return;
+      var fits = fitRoles(d, t);
+      if (!fits.length) { state.drafts[t.id] = members(t.id).filter(function (m) { return m[0] !== d.id; }); moved.push('退出' + t.name); }
+      else if (!fitsRole(d, roleOf(t, role))) { members(t.id).filter(function (m) { return m[0] === d.id; })[0][1] = fits[0].name; moved.push(t.name + '岗位改为' + fits[0].name); }
+    });
+    state.edit = null;
+    say(d.id + ' 已改装为 ' + d.type + ' + ' + d.payload + (moved.length ? '；' + moved.join('；') : '') + '。');
+  }
+
+  document.getElementById('body').addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-act]'); if (!t) return;
+    var act = t.getAttribute('data-act'), id = t.getAttribute('data-id');
+    var taskArg = t.getAttribute('data-task');
+    if (act === 'join') join(id, taskArg);
+    else if (act === 'remove') remove(id, taskArg);
+    else if (act === 'edit-open') { state.edit = (state.edit && state.edit.id === id) ? null : { id: id, type: t.getAttribute('data-type'), payload: t.getAttribute('data-pay') }; }
+    else if (act === 'edit-cancel') state.edit = null;
+    else if (act === 'edit-apply') applyEdit();
+    render();
+    if (act === 'edit-open') { var box = document.querySelector('.edit input:checked'); if (box) box.focus(); }
+  });
+  document.getElementById('body').addEventListener('change', function (ev) {
+    var el = ev.target;
+    if (el.name === 'etype' || el.name === 'epay') {
+      if (el.name === 'etype') state.edit.type = el.value; else state.edit.payload = el.value;
+      var keep = el.name; render();
+      var again = document.querySelector('.edit input[name="' + keep + '"]:checked'); if (again) again.focus();
+    } else if (el.hasAttribute('data-role')) {
+      var task = TASK[state.tab], m = members(task.id).filter(function (x) { return x[0] === el.getAttribute('data-role'); })[0];
+      if (m) { m[1] = el.value; say(m[0] + ' 的岗位改为 ' + el.value + '。'); render(); }
+    } else if (el.hasAttribute('data-strategy')) {
+      state.strategy[el.getAttribute('data-strategy')] = el.value; say('策略已改为「' + el.value + '」，缺口提示已更新。'); render();
+    }
+  });
+  document.querySelector('.viewbar').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-view]'); if (!b) return;
+    state.view = b.getAttribute('data-view'); state.edit = null; render();
+  });
+  document.getElementById('tabs').addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-tab]'); if (!t) return;
+    state.tab = t.getAttribute('data-tab'); state.edit = null; render();
+  });
+  document.getElementById('tabs').addEventListener('keydown', function (ev) {
+    var i = TASKS.map(function (t) { return t.id; }).indexOf(state.tab), n = TASKS.length;
+    var next = ev.key === 'ArrowRight' ? (i + 1) % n : ev.key === 'ArrowLeft' ? (i + n - 1) % n : ev.key === 'Home' ? 0 : ev.key === 'End' ? n - 1 : -1;
+    if (next < 0) return;
+    ev.preventDefault(); state.tab = TASKS[next].id; state.edit = null; render();
+    document.getElementById('tab-' + state.tab).focus();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && state.edit) { state.edit = null; render(); }
+  });
+  document.getElementById('demoRun').addEventListener('change', function (ev) {
+    state.running = ev.target.checked ? 'patrol' : null; state.edit = null;
+    say(state.running ? '演示：区域巡逻开始执行，uav101、uav102、uav103 被占用。' : '演示：区域巡逻已结束，飞机落地后释放。');
+    render();
+  });
+  function reset() {
+    state.drones = initialDrones(); state.drafts = initialDrafts(); state.edit = null; state.running = null;
+    state.strategy = { search: '双机确认', rescue: '先侦察后救援' };
+    document.getElementById('demoRun').checked = false; say('已恢复初始编组配置。'); render();
+  }
+  document.getElementById('resetBtn').addEventListener('click', reset);
+  document.getElementById('demoReset').addEventListener('click', reset);
+  document.getElementById('doneBtn').addEventListener('click', function () { say('配置已保存（原型：不会真的保存）。'); });
+  document.getElementById('closeBtn').addEventListener('click', function () { say('原型中不会关闭；真实界面里会回到指挥台。'); });
+
+  render();
+})();
+</script>
+</body>
+</html>

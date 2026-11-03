@@ -23,6 +23,7 @@ export interface CreateAdminUserInput {
 }
 
 export interface UpdateAdminUserInput {
+  password?: string;
   name?: string;
   role?: AdminUserRole;
   organization?: string;

@@ -1,3 +1,5 @@
+import { MockSecurityScenarioAdapter } from './mock/MockSecurityScenarioAdapter';
+import type { SecurityScenarioAdapter } from './contracts/securityScenario';
 import type {
   DroneService,
   EnvironmentService,
@@ -31,6 +33,8 @@ import { MockSecurityExperimentService } from './mock/MockSecurityExperimentServ
 import { ApiSecurityExperimentService } from './api/ApiSecurityExperimentService';
 import { MockCustomSecurityService } from './mock/MockCustomSecurityService';
 import type { SwarmService } from './swarmContract';
+import type { CollaborationRuntimeAdapter } from './collaborationContract';
+import { CollaborationMockRuntime } from './mock/CollaborationMockRuntime';
 import { assessmentRuntime, type AssessmentRuntime } from './mock/MockAssessmentRuntime';
 import { MockDroneAdapter, RealMavlinkAdapter, assessmentSource, type AssessmentDroneAdapter } from './assessment/droneAdapter';
 
@@ -58,8 +62,10 @@ export interface ServiceRegistry {
   scenes: SceneService;
   telemetry: TelemetryService;
   security: SecurityExperimentService;
+  securityScenario: SecurityScenarioAdapter;
   customSecurity: CustomSecurityService;
   swarm: SwarmService;
+  collaboration: CollaborationRuntimeAdapter;
   assessment: AssessmentRuntime;
   assessmentAdapter: AssessmentDroneAdapter;
 }
@@ -76,8 +82,10 @@ export const services: ServiceRegistry = dataSource === 'api'
       scenes: new ApiSceneService(),
       telemetry: new ApiTelemetryService(),
       security: new ApiSecurityExperimentService(),
+      securityScenario: new MockSecurityScenarioAdapter(),
       customSecurity: new MockCustomSecurityService(),
       swarm: swarmService,
+      collaboration: new CollaborationMockRuntime(),
       assessment: assessmentRuntime,
       assessmentAdapter: assessmentSource === 'real' ? new RealMavlinkAdapter() : new MockDroneAdapter(assessmentRuntime),
     }
@@ -92,8 +100,10 @@ export const services: ServiceRegistry = dataSource === 'api'
       scenes: new MockSceneService(),
       telemetry: new MockTelemetryService(),
       security: new MockSecurityExperimentService(),
+      securityScenario: new MockSecurityScenarioAdapter(),
       customSecurity: new MockCustomSecurityService(),
       swarm: swarmService,
+      collaboration: new CollaborationMockRuntime(),
       assessment: assessmentRuntime,
       assessmentAdapter: assessmentSource === 'real' ? new RealMavlinkAdapter() : new MockDroneAdapter(assessmentRuntime),
     };

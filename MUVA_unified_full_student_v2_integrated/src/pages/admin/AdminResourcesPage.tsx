@@ -1,7 +1,7 @@
 import { Cpu, RefreshCw, RotateCcw, Search, Server, Square } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { adminApi } from '../../services/adminApi';
+import { adminApi, adminPresentation } from '../../services/adminApi';
 import type { ResourceStatus, SimulationResource } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
@@ -66,7 +66,7 @@ export function AdminResourcesPage() {
   return (
     <section className={styles.rolePage}>
       <header className={styles.compactHeader}>
-        <div><h1>仿真资源</h1><p>维护 Gazebo、ArduPilot SITL 与运行实例。这里管理的是计算资源，不提供学生实验记录入口。</p></div>
+        <div><h1>仿真资源</h1><p>{adminPresentation.resourceIntro}</p></div>
         <span><Server size={14} /> 仿真实例调度</span>
       </header>
 
@@ -91,7 +91,7 @@ export function AdminResourcesPage() {
       {error ? <div className={styles.pageMessage}>{error}</div> : null}
 
       <section className={styles.panel}>
-        <div className={styles.panelHeader}><div className={styles.panelTitle}><Cpu size={16} />实例列表</div><span className={styles.panelSubtle}>预留资源控制 API，当前操作只作用于前端 Mock 状态</span></div>
+        <div className={styles.panelHeader}><div className={styles.panelTitle}><Cpu size={16} />实例列表</div><span className={styles.panelSubtle}>{adminPresentation.resourceNotice}</span></div>
         <div className={styles.dataTable}>
           <div className={`${styles.tableHead} ${styles.adminResourcesV2}`}><span>实例</span><span>节点</span><span>使用账号</span><span>实验 / 环境</span><span>资源</span><span>状态</span><span>操作</span></div>
           {loading ? <div className={styles.emptyHint}>正在同步仿真资源状态…</div> : filtered.map((item) => (

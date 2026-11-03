@@ -1,33 +1,42 @@
-import { Download, Search, UserPlus, Users } from 'lucide-react';
-
+import { Search, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { teacherApi } from '../../services/teacherApi';
+import type { AdminUser } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
-const students = [
-  ['张三', '20260001', '6 / 8', '91.2', '正常'],
-  ['李四', '20260002', '6 / 8', '87.6', '正常'],
-  ['王五', '20260003', '5 / 8', '82.1', '1 项异常'],
-  ['赵六', '20260004', '5 / 8', '79.8', '1 项未完成'],
-  ['陈七', '20260005', '6 / 8', '90.4', '正常'],
-] as const;
-
 export function TeacherStudentsPage() {
+  const [students, setStudents] = useState<AdminUser[]>([]);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void teacherApi.listStudents().then((result) => { if (active) setStudents(result.items); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : '学生名单加载失败'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const filtered = useMemo(() => students.filter((student) =>
+    `${student.name}${student.username}${student.organization}`.toLowerCase().includes(search.trim().toLowerCase())), [search, students]);
   return (
     <div className={styles.rolePage}>
       <section className={styles.hero}>
-        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><Users size={14} /> STUDENT MANAGEMENT</span><h1>学生管理</h1><p>查看课程学生、实验完成情况、平均成绩与异常记录。</p></div>
-        <div className={styles.heroAction}><button className={styles.primaryButton} type="button"><UserPlus size={14} />添加学生</button><span>软件工程 1 班 · 42 人</span></div>
+        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><Users size={14} /> STUDENT MANAGEMENT</span><h1>学生管理</h1><p>仅展示当前教师授课课程的学生；名单由管理员在课程管理中维护。</p></div>
+        <div className={styles.heroAction}><span>当前 {students.length} 人</span></div>
       </section>
-      <div className={styles.toolbar}><div className={styles.filters}><div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 10, top: 12, color: '#6c9ab7' }} /><input className={styles.search} style={{ paddingLeft: 32 }} placeholder="按姓名 / 学号搜索" /></div><select className={styles.filter}><option>软件工程 1 班</option><option>软件工程 2 班</option></select></div><button className={styles.ghostButton} type="button"><Download size={13} />导出名单</button></div>
+      <div className={styles.toolbar}><div className={styles.filters}><label className={styles.search}><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="按姓名 / 账号搜索" /></label></div></div>
+      {error && <p role="alert">{error}</p>}
       <section className={styles.panel}>
-        <div className={styles.panelHeader}><div className={styles.panelTitle}><Users size={18} />课程学生</div><span className={styles.panelSubtle}>已显示 5 / 42 人</span></div>
+        <div className={styles.panelHeader}><div className={styles.panelTitle}><Users size={18} />课程学生</div><span className={styles.panelSubtle}>已显示 {filtered.length} / {students.length} 人</span></div>
         <div className={styles.dataTable}>
-          <div className={`${styles.tableHead} ${styles.students}`}><span>学生</span><span>已完成实验</span><span>平均成绩</span><span>累计时长</span><span>状态</span><span>操作</span></div>
-          {students.map(([name, id, done, score, state], index) => (
-            <div className={`${styles.tableRow} ${styles.students}`} key={id}>
-              <div className={styles.studentIdentity}><div className={styles.avatar}>{name.slice(0, 1)}</div><div className={styles.identityCopy}><strong>{name}</strong><span>{id}</span></div></div>
-              <strong>{done}</strong><span className={styles.score}>{score}</span><span>{(8.2 + index * .4).toFixed(1)} h</span><span className={`${styles.statusPill} ${state === '正常' ? styles.success : styles.warning}`}>{state}</span><button className={styles.ghostButton} type="button">查看</button>
+          <div className={`${styles.tableHead} ${styles.students}`}><span>学生</span><span>登录账号</span><span>所属班级</span><span>账号状态</span><span>课程范围</span><span>来源</span></div>
+          {loading ? <div className={styles.emptyHint}>正在加载学生…</div> : filtered.map((student) => (
+            <div className={`${styles.tableRow} ${styles.students}`} key={student.id}>
+              <div className={styles.studentIdentity}><div className={styles.avatar}>{student.name.slice(0, 1)}</div><div className={styles.identityCopy}><strong>{student.name}</strong><span>{student.id}</span></div></div>
+              <strong>{student.username}</strong><span>{student.organization}</span><span>{student.status === 'active' ? '正常' : '已停用'}</span><span>我的课程</span><span>课程名单</span>
             </div>
           ))}
+          {!loading && !filtered.length && <div className={styles.emptyHint}>暂无符合条件的学生</div>}
         </div>
       </section>
     </div>

@@ -1,76 +1,58 @@
-import { Activity, AlertTriangle, BookOpenCheck, ChevronRight, Clock3, Cpu, Server, ShieldCheck, Users } from 'lucide-react';
+import { AlertTriangle, BookOpenCheck, ChevronRight, Clock3, ShieldCheck, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
+import { adminApi } from '../../services/adminApi';
+import type { AdminCourse, AdminUser } from '../../types/admin';
 import styles from '../platform/PlatformPages.module.css';
 
-const services = [
-  ['Web 前端', 'RUNNING', '正常', '刚刚'],
-  ['业务 API', 'RUNNING', '正常', '刚刚'],
-  ['Gazebo 服务', 'READY', '待分配', '1 分钟前'],
-] as const;
-
 export function AdminDashboardPage() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    void Promise.all([adminApi.listUsers(), adminApi.listCourses()]).then(([userResult, courseResult]) => {
+      if (active) { setUsers(userResult.items); setCourses(courseResult.items); }
+    }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : '数据加载失败'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const count = (role: AdminUser['role']) => users.filter((user) => user.role === role).length;
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
-        <div><h1>系统总览</h1><p>统一查看平台用户、课程、仿真资源与系统运行状态。</p></div>
-        <span><Clock3 size={15} />{new Date().toLocaleDateString('zh-CN')} · 管理环境</span>
+        <div><h1>系统总览</h1><p>账号与课程统计来自当前管理数据源；仿真资源与实验统计尚未接入。</p></div>
+        <span><Clock3 size={15} />{new Date().toLocaleDateString('zh-CN')}</span>
       </header>
-
+      {loading && <p role="status">正在加载管理数据…</p>}
+      {error && <p role="alert">{error}</p>}
       <div className={styles.dashboardGrid}>
         <section className={`${styles.panel} ${styles.statusPanel}`}>
-          <h2><Cpu size={18} />平台与教学资源</h2>
+          <h2><Users size={18} />账号与课程</h2>
           <div className={styles.statusGrid}>
-            <div className={styles.statusCard}><span>平台注册用户</span><strong>586</strong><i>● 今日在线 72</i></div>
-            <div className={styles.statusCard}><span>教师 / 学生</span><strong>26 / 560</strong><i>● 账号状态正常</i></div>
-            <div className={styles.statusCard}><span>开放课程</span><strong>12 / 18</strong><i>● 本学期运行中</i></div>
-            <div className={styles.statusCard}><span>仿真实例</span><strong>8 / 24</strong><i>● 资源充足</i></div>
+            <div className={styles.statusCard}><span>平台注册用户</span><strong>{loading ? '—' : users.length}</strong><i>已启用 {users.filter((u) => u.status === 'active').length}</i></div>
+            <div className={styles.statusCard}><span>教师 / 学生</span><strong>{loading ? '—' : `${count('teacher')} / ${count('student')}`}</strong><i>管理员 {count('admin')}</i></div>
+            <div className={styles.statusCard}><span>开放课程</span><strong>{loading ? '—' : courses.filter((c) => c.status === '进行中').length}</strong><i>总计 {courses.length} 门</i></div>
+            <div className={styles.statusCard}><span>课程成员</span><strong>{loading ? '—' : courses.reduce((sum, c) => sum + c.studentCount, 0)}</strong><i>按选课人数累计</i></div>
           </div>
         </section>
-
         <section className={`${styles.panel} ${styles.currentPanel}`}>
-          <h2><ShieldCheck size={18} />当前状态</h2>
+          <h2><ShieldCheck size={18} />管理范围</h2>
           <div className={styles.currentExperiment}>
-            <span>PLATFORM HEALTH</span>
-            <strong>平台整体运行正常</strong>
-            <small>1 条低优先级资源告警 · 暂无教学故障</small>
-            <Link className={styles.primaryButton} to="/admin/logs">查看操作日志 <ChevronRight size={15} /></Link>
+            <span>PLATFORM ADMINISTRATION</span>
+            <strong>账号与课程管理</strong>
+            <small>创建教师、学生账号并配置授课课程；其他教学模块仍处于演示阶段。</small>
+            <Link className={styles.primaryButton} to="/admin/users">管理账号 <ChevronRight size={15} /></Link>
           </div>
         </section>
-
-        <section className={`${styles.panel} ${styles.recentPanel}`}>
-          <h2><Activity size={18} />平台与仿真服务</h2>
-          <div className={styles.recordList}>
-            {services.map(([name, state, detail, time]) => (
-              <Link className={styles.recordItem} to="/admin/resources" key={name}>
-                <span><strong>{name}</strong><small>系统服务</small></span>
-                <span><small>状态</small><strong>{state}</strong></span>
-                <span><small>健康度</small><strong>{detail}</strong></span>
-                <span><small>节点</small><strong>MUVA-NODE</strong></span>
-                <span><small>检查时间</small><strong>{time}</strong></span>
-                <ChevronRight size={16} />
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className={`${styles.panel} ${styles.vehiclePanel}`}>
-          <h2><Server size={18} />资源状态</h2>
-          <div className={styles.metricGrid}>
-            <div className={styles.metricCard}><span>CPU 使用率</span><strong>42%</strong></div>
-            <div className={styles.metricCard}><span>内存使用率</span><strong>61%</strong></div>
-            <div className={styles.metricCard}><span>GPU 使用率</span><strong>37%</strong></div>
-            <div className={styles.metricCard}><span>运行实例</span><strong>8 / 24</strong></div>
-          </div>
-        </section>
-
         <section className={`${styles.panel} ${styles.alertsPanel}`}>
-          <h2><AlertTriangle size={18} />管理快捷入口</h2>
+          <h2><AlertTriangle size={18} />快捷入口</h2>
           <div className={styles.alertList}>
-            <span className={styles.healthyAlert}><Users size={14} />用户管理：教师、学生与账号状态</span>
-            <span className={styles.healthyAlert}><BookOpenCheck size={14} />课程管理：课程、班级与任课教师</span>
-            <span className={styles.healthyAlert}><ShieldCheck size={14} />实验管理：可修改教师创建的实验定义</span>
-            <span><AlertTriangle size={14} />管理员不可进入学生个人实验记录、轨迹、报告和成绩详情</span>
+            <Link to="/admin/users"><Users size={14} />用户管理</Link>
+            <Link to="/admin/courses"><BookOpenCheck size={14} />课程与选课名单</Link>
+            <Link to="/admin/logs"><ShieldCheck size={14} />账号及课程操作审计</Link>
+            <span><AlertTriangle size={14} />资源监控尚未接入；不展示虚假的运行状态。</span>
           </div>
         </section>
       </div>

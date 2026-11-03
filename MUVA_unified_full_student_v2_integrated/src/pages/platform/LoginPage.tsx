@@ -12,10 +12,10 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import mainStyles from '../../layouts/MainLayout/MainLayout.module.css';
-import { getDemoAccount, getRoleHomePath, type UserRole, useAuthStore } from '../../stores/authStore';
+import { getAuthPresentation, getDemoAccount, getRoleHomePath, type UserRole, useAuthStore } from '../../stores/authStore';
 import styles from './LoginPage.module.css';
 
 type RoleMeta = {
@@ -30,16 +30,16 @@ const roleMeta: Record<UserRole, RoleMeta> = {
   admin: {
     title: '管理员',
     shortDescription: '平台配置与教学资源管理',
-    description: '管理平台用户、课程、实验定义、权限与仿真资源。',
+    description: '管理账号、课程与实验定义；资源运维目前仅演示。',
     icon: <ShieldCheck size={22} />,
-    capabilities: ['用户与权限', '课程与实验定义', '仿真资源管理'],
+    capabilities: ['账号与课程管理', '实验定义维护', '资源功能仅演示'],
   },
   teacher: {
     title: '教师',
     shortDescription: '课程实验与教学过程管理',
-    description: '创建课程与实验，监控学生实验过程并完成成绩评定。',
+    description: '管理本人课程实验定义；监控和成绩目前仅演示。',
     icon: <School size={22} />,
-    capabilities: ['课程教学', '实验发布与监控', '成绩评定'],
+    capabilities: ['本人课程与学生名单', '实验定义发布', '监控与成绩仅演示'],
   },
   student: {
     title: '学生',
@@ -52,11 +52,15 @@ const roleMeta: Record<UserRole, RoleMeta> = {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = (location.state as { message?: string } | null)?.message;
   const login = useAuthStore((state) => state.login);
   const [role, setRole] = useState<UserRole>('student');
   const initial = useMemo(() => getDemoAccount(role), [role]);
-  const [username, setUsername] = useState(initial.username);
-  const [password, setPassword] = useState(initial.password);
+  const presentation = getAuthPresentation();
+  const demo = presentation.demo;
+  const [username, setUsername] = useState(demo ? initial.username : '');
+  const [password, setPassword] = useState(demo ? initial.password : '');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,8 +76,8 @@ export function LoginPage() {
   const selectRole = (nextRole: UserRole) => {
     const account = getDemoAccount(nextRole);
     setRole(nextRole);
-    setUsername(account.username);
-    setPassword(account.password);
+    setUsername(demo ? account.username : '');
+    setPassword(demo ? account.password : '');
     setError('');
   };
 
@@ -87,7 +91,7 @@ export function LoginPage() {
       setError(result.message ?? '登录失败');
       return;
     }
-    navigate(getRoleHomePath(role), { replace: true });
+    navigate(getRoleHomePath(useAuthStore.getState().role), { replace: true });
   };
 
   return (
@@ -117,8 +121,8 @@ export function LoginPage() {
               <p>请选择与账号对应的身份，登录后系统将进入相应的教学工作台。</p>
             </div>
             <div className={styles.authStatus}>
-              <span>认证服务</span>
-              <strong><CheckCircle2 size={14} />正常</strong>
+              <span>认证方式</span>
+              <strong><CheckCircle2 size={14} />{presentation.label}</strong>
             </div>
           </header>
 
@@ -201,27 +205,28 @@ export function LoginPage() {
                 </label>
               </div>
 
-              {error ? <div className={styles.loginError}>{error}</div> : null}
+              {notice && !error ? <div role="status" className={styles.loginHelp}>{notice}</div> : null}
+              {error ? <div role="alert" className={styles.loginError}>{error}</div> : null}
 
               <button className={styles.loginButton} type="submit" disabled={submitting}>
                 {submitting ? '身份验证中…' : `登录${selectedMeta.title}端`}
               </button>
 
-              <div className={styles.demoAccount}>
+              {demo && <div className={styles.demoAccount}>
                 <Wrench size={13} />
                 <span>开发联调账号</span>
                 <strong>{getDemoAccount(role).username}</strong>
                 <i>/</i>
                 <strong>{getDemoAccount(role).password}</strong>
-              </div>
+              </div>}
 
-              <p className={styles.loginHelp}>正式接入后端后，此处将通过统一认证接口校验账号、角色与权限。</p>
+              <p className={styles.loginHelp}>{presentation.help}</p>
             </form>
           </div>
 
           <footer className={styles.frameFooter}>
             <span>MUVA 教学平台 V1.0</span>
-            <span>登录接口：预留 /api/auth/login</span>
+            <span>{presentation.footer}</span>
             <span>仅限授权用户访问</span>
           </footer>
         </section>

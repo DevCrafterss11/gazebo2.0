@@ -60,8 +60,8 @@ function FlightControls({ run }: { run: SwarmRun }) {
   const { command, finish } = useSwarmStore.getState();
   const [confirm, setConfirm] = useState<'return' | 'finish' | null>(null);
   const state = run.snapshot?.status;
-  return <><div className={styles.flightControls}><button type="button" disabled={state !== 'READY' || !missionUploaded(run) || run.delivery?.status !== 'WAITING_TAKEOFF'} onClick={() => command('takeoff')}>↑<span>集群起飞</span></button><button type="button" disabled={state !== 'HOLDING'} onClick={() => command('startMission')}>▶<span>开始任务</span></button><button className={styles.primaryButton} type="button" disabled={state !== 'RUNNING'} onClick={() => command('pauseMission')}>Ⅱ<span>暂停任务</span></button><button type="button" disabled={state !== 'PAUSED'} onClick={() => command('resumeMission')}>▶<span>继续任务</span></button><button className={styles.returnButton} type="button" disabled={!['RUNNING','PAUSED','HOLDING','TAKING_OFF'].includes(state ?? '')} onClick={() => setConfirm('return')}>⌂<span>集群返航</span></button><button className={styles.dangerButton} type="button" onClick={() => setConfirm('finish')}>■<span>结束实验</span></button></div>
-  {confirm && <ConfirmDialog title={confirm === 'return' ? '确认集群返航' : '确认结束实验'} description={confirm === 'return' ? '未完成的区域将计为覆盖缺口，所有无人机安全返航。' : '运行中的无人机会先安全返航并降落，再生成实验结果。'} onCancel={() => setConfirm(null)} onConfirm={() => { if (confirm === 'return') command('returnToHome'); else finish(); setConfirm(null); }} />}</>;
+  return <><div className={styles.flightControls}><button type="button" disabled={state !== 'READY' || !missionUploaded(run) || run.delivery?.status !== 'WAITING_TAKEOFF'} onClick={() => command('takeoff')}>↑<span>集群起飞</span></button><button type="button" disabled={state !== 'HOLDING'} onClick={() => command('startMission')}>▶<span>开始任务</span></button><button className={styles.primaryButton} type="button" disabled={state !== 'RUNNING'} onClick={() => command('pauseMission')}>Ⅱ<span>暂停任务</span></button><button type="button" disabled={state !== 'PAUSED'} onClick={() => command('resumeMission')}>▶<span>继续任务</span></button><button className={styles.returnButton} type="button" disabled={!['RUNNING','PAUSED','HOLDING','TAKING_OFF','FAILED'].includes(state ?? '')} onClick={() => setConfirm('return')}>⌂<span>集群返航</span></button><button className={styles.dangerButton} type="button" onClick={() => setConfirm('finish')}>■<span>结束实验</span></button></div>
+  {confirm && <ConfirmDialog title={confirm === 'return' ? '确认集群返航' : '确认结束实验'} description={confirm === 'return' ? '各机并行下发 RTL，由飞控执行返航和降落；未完成区域计为覆盖缺口。' : '各机并行 RTL，收到落地及上锁确认后生成结果，并清理本实验的 SITL 与 Gazebo。清理失败时可手动中止并回收。'} onCancel={() => setConfirm(null)} onConfirm={() => { if (confirm === 'return') command('returnToHome'); else finish(); setConfirm(null); }} />}</>;
 }
 
 function FlightStep({ run }: { run: SwarmRun }) {
@@ -95,12 +95,12 @@ function ResultStep({ run, onNewRun }: { run: SwarmRun; onNewRun: () => void }) 
     <PanelShell icon={Trophy} title="评分结果"><div className={styles.scoreLayout}><div className={styles.scoreShield}><strong>{result.score}</strong><small>分</small><b>{result.score >= 85 ? '优秀' : result.score >= 60 ? '合格' : '待改进'}</b></div><div className={styles.scoreItems}>{[['机群配置与安全着陆', run.snapshot?.drones.every((drone) => drone.state === 'LANDED') ? 10 : 0, 10], ['规划与航线执行', result.status === 'COMPLETED' ? 20 : 0, 20], ['区域覆盖率', Math.round(result.coverage * 0.7), 70]].map(([title, points, maximum]) => <div key={String(title)}><span>{title}</span><b>{points} / {maximum}</b><i><em style={{ width: `${Number(points) / Number(maximum) * 100}%` }} /></i></div>)}</div></div></PanelShell>
     <PanelShell icon={Play} title="飞行轨迹回放" className={`${styles.mapPanel} ${styles.resultMap}`}><SwarmMap run={replay} /><div className={styles.playback}><span>{duration(result.elapsed * playback / 100)} / {duration(result.elapsed)}</span><input aria-label="轨迹回放进度" type="range" min="0" max="100" value={playback} onChange={(event) => setPlayback(Number(event.target.value))} /><span>{playback}%</span></div></PanelShell>
     <PanelShell icon={ClipboardList} title="实验记录与报告"><div className={styles.infoRows}><div>实验编号 <b>{run.id.slice(0, 24)}</b></div><div>开始时间 <b>{new Date(run.createdAt).toLocaleString('zh-CN')}</b></div><div>结束时间 <b>{new Date(result.completedAt).toLocaleString('zh-CN')}</b></div><div>实验模式 <b>{runtimeLabel}</b></div><div>无人机数量 <b>{run.config.count} 架</b></div><div>实验状态 <b className={result.status === 'COMPLETED' ? styles.success : styles.warning}>{result.status}</b></div></div><h3>关键事件记录</h3><div className={styles.logs}>{result.events.slice(-5).map((event, index) => <span key={index}><i />{event}</span>)}</div>{result.feedback.map((message) => <p className={styles.helper} key={message}>{message}</p>)}</PanelShell>
-    <div className={styles.resultActions}><button className={styles.primaryButton} type="button" onClick={() => { save(); setSaved(true); }}><ClipboardCheck size={17} />{saved ? '记录已保存' : '保存实验记录'}</button><button className={styles.primaryButton} type="button" onClick={exportReport}><Download size={17} />导出报告</button><button className={styles.primaryButton} type="button" disabled={busy} onClick={onNewRun}><RotateCcw size={17} />新建实验草稿</button><Link to="/experiments"><ArrowLeft size={17} />返回实验中心</Link></div>
+    <div className={styles.resultActions}><button className={styles.primaryButton} type="button" onClick={() => { save(); setSaved(true); }}><ClipboardCheck size={17} />{saved ? '记录已保存' : '保存实验记录'}</button><button className={styles.primaryButton} type="button" onClick={exportReport}><Download size={17} />导出报告</button><button className={styles.primaryButton} type="button" disabled={busy} onClick={onNewRun}><RotateCcw size={17} />新建实验</button><Link to="/experiments"><ArrowLeft size={17} />返回实验中心</Link></div>
   </div>;
 }
 
 export function SwarmExperimentPage() {
-  const { run, savedDrafts, error, busy, newRun, abortRuntimeAndNewRun, restoreDraft, resume, navigate, leave } = useSwarmStore();
+  const { run, savedDrafts, error, busy, abortRuntimeAndNewRun, restoreDraft, resume, navigate, leave } = useSwarmStore();
   const [active, setActive] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'new' | 'abort' | 'leave' | null>(null);
   const flightActive = !!run?.snapshot && (run.snapshot.drones.some((drone) => drone.armed || !['READY', 'LANDED'].includes(drone.state))
@@ -108,8 +108,8 @@ export function SwarmExperimentPage() {
   const startNew = async () => {
     if (busy) return;
     if (flightActive || run && !run.result) { setConfirmAction('new'); return; }
-    await newRun();
-    setActive(true);
+    await abortRuntimeAndNewRun();
+    if (!useSwarmStore.getState().error) setActive(true);
   };
   useEffect(() => {
     if (!active) return;
@@ -129,20 +129,20 @@ export function SwarmExperimentPage() {
     return () => { window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); window.removeEventListener('beforeunload', warnBeforeUnload); leave(); };
   }, [active, leave, resume]);
   const confirmation = confirmAction && <ConfirmDialog
-    title={confirmAction === 'new' ? '新建实验草稿' : confirmAction === 'abort' ? '中止并回收 SITL 仿真' : '保留进度并返回'}
+    title={confirmAction === 'new' ? '新建实验' : confirmAction === 'abort' ? '中止并回收 SITL 仿真' : '保留进度并返回'}
     description={confirmAction === 'new'
-      ? '当前进度会归档为本地草稿，再创建一份全新的实验进度。此操作不会关闭或重置任何后端飞控会话；若机群仍在飞行，请先返航并确认落地。是否继续？'
+      ? '当前进度会归档，并清理本实验二开启的 SITL 飞控与 Gazebo，再创建新实验。若飞机尚在飞行，仿真会直接中断，不会执行返航或降落。是否继续？'
       : confirmAction === 'abort'
         ? '这会强制终止本 MUVA 实验二管理的 Gazebo 与 SITL 进程，不会发送返航/降落指令，也不代表已安全着陆。当前实验将作为中止进度保留。仅在仿真卡死且接受中断时操作。'
         : '当前进度会保留。离开后页面将断开实时遥测，但不会暂停、返航或关闭飞控；请先确认机群状态，是否继续？'}
-    confirmLabel={confirmAction === 'new' ? '归档并新建草稿' : confirmAction === 'abort' ? '确认中止仿真' : '保留并离开'}
+    confirmLabel={confirmAction === 'new' ? '清理并新建实验' : confirmAction === 'abort' ? '确认中止仿真' : '保留并离开'}
     onCancel={() => setConfirmAction(null)}
     onConfirm={async () => {
       const action = confirmAction;
       setConfirmAction(null);
       if (action === 'new') {
-        await newRun();
-        setActive(true);
+        await abortRuntimeAndNewRun();
+        if (!useSwarmStore.getState().error) setActive(true);
       } else if (action === 'abort') {
         await abortRuntimeAndNewRun();
         if (!useSwarmStore.getState().error) setActive(true);
@@ -172,13 +172,13 @@ export function SwarmExperimentPage() {
       </div>
       {run?.config.simulationMode === 'sitl' && <div className={styles.dangerAction}><p>仅当真实仿真卡死且确认接受强制中止风险时使用。中止不等于安全着陆。</p><button type="button" disabled={busy} onClick={() => setConfirmAction('abort')}>中止并回收 SITL 仿真</button></div>}
       {savedDrafts.some((draft) => draft.id !== run?.id) && <section className={styles.savedProgress} aria-label="已保留的实验进度"><h3>其他已保留进度</h3><ul>{savedDrafts.filter((draft) => draft.id !== run?.id).map((draft) => <li key={draft.id}><div><strong>{new Date(draft.createdAt).toLocaleString('zh-CN')}</strong><small>{names[draft.step - 1] ?? names[0]} · {(draft.snapshot?.coverage ?? 0).toFixed(1)}% · {duration(draft.snapshot?.elapsed ?? 0)}{draft.snapshot?.interrupted ? ' · 已中断' : ''}</small></div><button type="button" aria-label={`恢复保留进度 ${draft.id}`} onClick={() => { restoreDraft(draft.id); if (useSwarmStore.getState().run?.id === draft.id && !useSwarmStore.getState().error) setActive(true); }}>打开记录</button></li>)}</ul></section>}
-      <p className={styles.entryFootnote}>本地已保存 {savedSwarmRecords().length} 条实验二结果。新建实验不会删除历史结果或自动关闭真实飞控；开始真实飞行前，请确认机群已安全落地。</p>
+      <p className={styles.entryFootnote}>本地已保存 {savedSwarmRecords().length} 条实验二结果。新建实验会清理实验二当前的 SITL 与 Gazebo，保留历史结果；卡死时也可使用“中止并回收 SITL 仿真”。</p>
     </PanelShell></div>
     {confirmation}
   </div>;
   const allowed = (step: number) => step <= 2 || step === 3 && !!run.area && !!run.snapshot || step === 4 && run.confirmed && missionUploaded(run) || step === 5 && missionUploaded(run) && run.checks.length > 0 && run.checks.every((item) => item.status === 'PASSED') || step === 6 && !!run.result;
   const completed = (step: number) => step < run.step && (step !== 2 || !!run.area) && (step !== 3 || run.confirmed) && (step !== 4 || run.checks.length > 0 && run.checks.every((item) => item.status === 'PASSED'));
-  return <div className={styles.page}><div className={styles.experimentHeading}><div className={styles.headingIcon}><ClipboardList size={28} /></div><div><h1>实验二：多无人机集群区域规划与协同飞行</h1><p>通过多无人机的区域覆盖任务，学习机群任务分配、航线规划与协同起降，掌握集群作业的基本方法。</p></div><div className={styles.sessionActions}><button type="button" onClick={() => setConfirmAction('leave')}><Save size={13} />保留进度并返回</button><button type="button" onClick={startNew}><RotateCcw size={13} />新建实验草稿</button></div></div>
+  return <div className={styles.page}><div className={styles.experimentHeading}><div className={styles.headingIcon}><ClipboardList size={28} /></div><div><h1>实验二：多无人机集群区域规划与协同飞行</h1><p>通过多无人机的区域覆盖任务，学习机群任务分配、航线规划与协同起降，掌握集群作业的基本方法。</p></div><div className={styles.sessionActions}><button type="button" onClick={() => setConfirmAction('leave')}><Save size={13} />保留进度并返回</button><button type="button" disabled={busy} onClick={startNew}><RotateCcw size={13} />新建实验</button>{run.config.simulationMode === 'sitl' && <button type="button" disabled={busy} onClick={() => setConfirmAction('abort')}>中止并回收 SITL 仿真</button>}</div></div>
     <nav className={styles.stepper} aria-label="实验步骤">{names.map((title, index) => <button key={title} type="button" disabled={!allowed(index + 1) || index + 1 === run.step} className={index + 1 === run.step ? styles.currentStep : completed(index + 1) ? styles.completedStep : ''} onClick={() => navigate(index + 1)}><span>{completed(index + 1) ? <Check size={18} /> : index + 1}</span>{title}</button>)}</nav>
     <div className={styles.content}>{error && <div role="alert" className={styles.error}>{error}<button type="button" onClick={() => useSwarmStore.getState().clearError()}>关闭</button></div>}{run.snapshot?.interrupted && run.step !== 5 && run.step !== 6 && <div className={styles.error}>上次模拟运行已中断，请重新初始化机群。<button type="button" onClick={() => useSwarmStore.getState().finish()}>中断结束并查看结果</button></div>}
       {run.step === 1 && <ConfigStep run={run} />}{run.step === 2 && <AreaPlanningStep run={run} />}{run.step === 3 && <MissionPlanningStep run={run} />}{run.step === 4 && <CheckStep run={run} />}{run.step === 5 && <FlightStep run={run} />}{run.step === 6 && <ResultStep run={run} onNewRun={() => void startNew()} />}

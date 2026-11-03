@@ -1,4 +1,5 @@
 import { distance, homes, swarmFrame } from './swarmGeometry';
+import { planParallelRoutes } from './swarmDeconfliction';
 import { minimumCoverageRectangle } from './swarmCoverage';
 import { routeLength, shortestRoute, segmentDistance, segmentHitsBox, type RoutingBox, type RoutingSegment } from './swarmRouting';
 import type { Point, SwarmArea, SwarmConfig, SwarmDrone, SwarmMission, SwarmRegion } from '../types/swarm';
@@ -234,6 +235,7 @@ export function assertPlanningSafe(area: SwarmArea, zones: SwarmArea[], config: 
       throw new Error('并行覆盖路径之间不足安全间距，请重新分区或规划');
     }
   });
+  if (missions.length) planParallelRoutes(missions.map((mission) => [mission.entryPath![0]!, ...mission.waypoints, ...mission.returnPath!.slice(1)].map(toLocal)), config.safety, config.speed, config.altitude / 5);
   if (config.homePosition && routeIntersectsNoFly([config.homePosition, config.homePosition], zones, config.sceneOrigin)) throw new Error('规划 Home 位于禁飞区内，请调整参考点');
   const positions = fleet?.map((drone) => drone.homePosition) ?? homes(config.count, undefined, config.sceneOrigin);
   positions.forEach((home, index) => {
@@ -339,24 +341,38 @@ export function buildCoverageMissions(area: SwarmArea, config: SwarmConfig, flee
       coverageWaypointIndices, routingObstacles: obstacles, plannedDistance: 0, estimatedDuration: 0,
       assignedColor: swarmColors[index]!, taskStatus: 'PLANNED' };
   });
-  missions.forEach((mission, index) => {
-    mission.entryPath = shortestRoute(toLocal(positions[index]!), toLocal(mission.waypoints[0]!), [...obstacles, ...waitingBoxes(missions, index, config, 'entry', fleet)]).map(toGeo);
-    mission.returnPath = shortestRoute(toLocal(mission.waypoints.at(-1)!), toLocal(fleet?.[index]?.homePosition ?? positions[index]!),
-      [...obstacles, ...waitingBoxes(missions, index, config, 'return', fleet)]).map(toGeo);
-    const entry = mission.entryPath.slice(1, -1);
-    mission.coverageStartIndex = entry.length;
-    mission.coverageWaypointIndices = mission.coverageWaypointIndices!.map((position) => position + entry.length);
-    mission.waypoints = [...entry, ...mission.waypoints];
-    const path = [positions[index]!, ...mission.waypoints, ...mission.returnPath.slice(1)].map(toLocal);
-    mission.plannedDistance = path.slice(1).reduce((sum, point, position) => sum + distance(path[position]!, point), 0);
-  });
-  const entrySeconds = missions.reduce((sum, mission) => sum + routeLength(mission.entryPath!.map(toLocal)) / config.speed, 0);
-  const coverageSeconds = Math.max(...missions.map((mission) => routeLength(mission.waypoints.slice(mission.coverageStartIndex).map(toLocal)) / config.speed));
-  let returnSeconds = 0;
-  missions.forEach((mission) => {
-    returnSeconds += routeLength(mission.returnPath!.map(toLocal)) / config.speed + config.altitude / 5;
-    mission.estimatedDuration = config.altitude / 5 + (config.count - 1) * 4 + entrySeconds + coverageSeconds + returnSeconds;
-  });
-  assertPlanningSafe(area, zones, config, missions, fleet);
-  return missions;
+  const connectTransfers = (order: number[]): SwarmMission[] => {
+    const assigned = order.map((regionIndex, droneIndex): SwarmMission => ({ ...missions[regionIndex]!,
+      missionId: missions[droneIndex]!.missionId, droneId: missions[droneIndex]!.droneId, assignedColor: swarmColors[droneIndex]! }));
+    assigned.forEach((mission, index) => {
+      mission.entryPath = shortestRoute(toLocal(positions[index]!), toLocal(mission.waypoints[0]!), [...obstacles, ...waitingBoxes(assigned, index, config, 'entry', fleet)]).map(toGeo);
+      mission.returnPath = shortestRoute(toLocal(mission.waypoints.at(-1)!), toLocal(fleet?.[index]?.homePosition ?? positions[index]!),
+        [...obstacles, ...waitingBoxes(assigned, index, config, 'return', fleet)]).map(toGeo);
+      const entry = mission.entryPath.slice(1, -1);
+      mission.coverageStartIndex = entry.length;
+      mission.coverageWaypointIndices = mission.coverageWaypointIndices!.map((position) => position + entry.length);
+      mission.waypoints = [...entry, ...mission.waypoints];
+      const path = [positions[index]!, ...mission.waypoints, ...mission.returnPath.slice(1)].map(toLocal);
+      mission.plannedDistance = path.slice(1).reduce((sum, point, position) => sum + distance(path[position]!, point), 0);
+    });
+    const schedule = planParallelRoutes(assigned.map((mission) => [mission.entryPath![0]!, ...mission.waypoints, ...mission.returnPath!.slice(1)].map(toLocal)), config.safety, config.speed, config.altitude / 5);
+    assigned.forEach((mission, index) => {
+      mission.estimatedDuration = 2 * config.altitude / 5 + mission.plannedDistance / config.speed + schedule.waits[index]!;
+    });
+    assertPlanningSafe(area, zones, config, assigned, fleet);
+    return assigned;
+  };
+  const originalOrder = missions.map((_, index) => index);
+  try { return connectTransfers(originalOrder); }
+  catch (originalError) {
+    const permutations = function* (prefix: number[], remaining: number[]): Generator<number[]> {
+      if (!remaining.length) { yield prefix; return; }
+      for (const value of remaining) yield* permutations([...prefix, value], remaining.filter((other) => other !== value));
+    };
+    for (const order of permutations([], originalOrder)) {
+      if (order.every((value, index) => value === index)) continue;
+      try { return connectTransfers(order); } catch { /* Try another allocation without changing the scan partitions. */ }
+    }
+    throw originalError;
+  }
 }

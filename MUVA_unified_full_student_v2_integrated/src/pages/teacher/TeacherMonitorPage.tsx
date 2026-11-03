@@ -16,12 +16,12 @@ export function TeacherMonitorPage() {
   return (
     <div className={styles.rolePage}>
       <section className={styles.hero}>
-        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><RadioTower size={14} /> LIVE LAB MONITOR</span><h1>实验监控</h1><p>实时查看学生实验状态、任务阶段和异常事件。教师默认只读监控，仅保留安全终止与重置操作。</p></div>
+        <div className={styles.heroCopy}><span className={styles.heroEyebrow}><RadioTower size={14} /> LIVE LAB MONITOR</span><h1>实验监控</h1><p>教学演示画面：以下学生状态与遥测不是实时数据，不可用于实际安全决策。</p></div>
         <div className={styles.heroAction}><strong>航点任务规划实验 · 软件工程 1 班</strong><span>28 人实验中 · 12 人已完成 · 2 人异常</span></div>
       </section>
       <div className={styles.statGrid}>
         <div className={styles.statCard}><div className={styles.statTop}><span>学生总数</span><Users size={18} /></div><div className={styles.statValue}><strong>42</strong><span>人</span></div><div className={styles.statFoot}>当前课程班级</div></div>
-        <div className={styles.statCard}><div className={styles.statTop}><span>实验中</span><RadioTower size={18} /></div><div className={styles.statValue}><strong>28</strong><span>人</span></div><div className={styles.statFoot}><b>实时遥测已连接</b></div></div>
+        <div className={styles.statCard}><div className={styles.statTop}><span>实验中</span><RadioTower size={18} /></div><div className={styles.statValue}><strong>28</strong><span>人</span></div><div className={styles.statFoot}><b>演示数据 · 未连接遥测</b></div></div>
         <div className={styles.statCard}><div className={styles.statTop}><span>已完成</span><Crosshair size={18} /></div><div className={styles.statValue}><strong>12</strong><span>人</span></div><div className={styles.statFoot}>完成率 28.6%</div></div>
         <div className={styles.statCard}><div className={styles.statTop}><span>异常</span><AlertTriangle size={18} /></div><div className={styles.statValue}><strong>2</strong><span>人</span></div><div className={styles.statFoot}>需要教师关注</div></div>
       </div>
@@ -39,12 +39,12 @@ export function TeacherMonitorPage() {
           </div>
         </section>
         <section className={styles.panel}>
-          <div className={styles.panelHeader}><div className={styles.panelTitle}><Crosshair size={18} />{selected} · 实时详情</div><span className={styles.statusPill}>只读监控</span></div>
+          <div className={styles.panelHeader}><div className={styles.panelTitle}><Crosshair size={18} />{selected} · 实时详情</div><span className={styles.statusPill}>演示视图</span></div>
           <div className={styles.monitorMap}><div className={styles.droneDot}><RadioTower size={18} /></div><span className={styles.mapLabel}>{selected} · {selectedData[3]}</span></div>
           <div className={styles.telemetryGrid} style={{ marginTop: 10 }}>
             <div className={styles.telemetryCell}><span>当前阶段</span><strong>{selectedData[2]}</strong></div><div className={styles.telemetryCell}><span>飞行模式</span><strong>{selectedData[4]}</strong></div><div className={styles.telemetryCell}><span>高度</span><strong>{selectedData[3]}</strong></div><div className={styles.telemetryCell}><span>状态</span><strong>{selectedData[5]}</strong></div>
           </div>
-          <div className={styles.toolbar} style={{ marginTop: 12, marginBottom: 0 }}><button className={styles.dangerButton} type="button"><Square size={12} />终止实验</button><button className={styles.ghostButton} type="button"><RotateCcw size={12} />安全重置</button></div>
+          <div className={styles.toolbar} style={{ marginTop: 12, marginBottom: 0 }}><button className={styles.dangerButton} type="button" disabled title="未接入真实监控接口"><Square size={12} />终止实验（未接入）</button><button className={styles.ghostButton} type="button" disabled title="未接入真实监控接口"><RotateCcw size={12} />安全重置（未接入）</button></div>
           {selectedData[1] === '异常' ? <div className={styles.alertRow} style={{ marginTop: 10 }}><ShieldAlert size={15} /><div className={styles.alertCopy}><strong>检测到异常</strong><span>{selectedData[5]}，建议检查定位与 EKF 状态。</span></div></div> : null}
         </section>
       </div>

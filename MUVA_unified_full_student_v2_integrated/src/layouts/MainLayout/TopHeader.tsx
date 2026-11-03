@@ -36,6 +36,7 @@ export function TopHeader() {
   const [now, setNow] = useState(() => new Date());
   const [activePopover, setActivePopover] = useState<HeaderPopover>(null);
   const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const actionAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export function TopHeader() {
     && runtime.mavlinkGateway === 'CONNECTED';
   const inSwarmExperiment = pathname.startsWith('/experiments/swarm');
   const inAssessment = pathname.startsWith('/experiments/mission') || pathname.startsWith('/records/assessment');
-  const isolatedMock = inSwarmExperiment || inAssessment && assessmentSource === 'mock';
+  const isolatedMock = inSwarmExperiment || pathname.startsWith('/experiments/collaboration') || inAssessment && assessmentSource === 'mock';
   const assessmentReadOnly = inAssessment && assessmentSource === 'real';
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
@@ -149,12 +150,12 @@ export function TopHeader() {
         </div>
       </header>
       {confirmingLogout ? (
-        <Modal title="退出账号" description="确定退出当前账号吗？" onClose={() => setConfirmingLogout(false)} width="compact">
+        <Modal title="退出账号" description="确定退出当前账号吗？" onClose={() => { if (!loggingOut) setConfirmingLogout(false); }} width="compact">
           <div className={styles.logoutConfirm}>
-            <p>退出后会清理当前浏览器会话中的登录状态；实验记录仍保留在本地。</p>
+            <p>退出将请求实验三模拟机队安全返航，落地后清除本次演练记录与登录状态；当前账号的编组配置仍保存在本机。</p>
             <div>
-              <button type="button" onClick={() => setConfirmingLogout(false)}>取消</button>
-              <button type="button" onClick={() => { logout(); setConfirmingLogout(false); navigate('/login'); }}>确定退出</button>
+              <button type="button" disabled={loggingOut} onClick={() => setConfirmingLogout(false)}>取消</button>
+              <button type="button" disabled={loggingOut} onClick={async () => { setLoggingOut(true); try { await logout(); setConfirmingLogout(false); navigate('/login'); } finally { setLoggingOut(false); } }}>{loggingOut ? '等待模拟飞机安全落地…' : '确定退出'}</button>
             </div>
           </div>
         </Modal>

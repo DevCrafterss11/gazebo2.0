@@ -1,0 +1,6 @@
+.targets { display: grid; gap: 12px; text-align: left; }
+.target { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #255a78; }
+.target b { color: #ffd0c9; }
+.target button { justify-self: start; }
+.legend { margin: 10px 16px; font-size: 12px; line-height: 1.6; color: #ffcf9a; }
+.error { margin: 10px 16px; font-size: 12px; color: #ff9b94; }

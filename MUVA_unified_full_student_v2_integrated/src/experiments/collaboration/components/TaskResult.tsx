@@ -1,0 +1,9 @@
+import { describeTaskRole } from '../../../domain/collaborationMission';
+import type { TaskRecord } from '../../../types/collaboration';
+import styles from '../Collaboration.module.css';
+export function TaskResult({ record }: { record: TaskRecord }) {
+  return <section className={styles.taskResult}><h3>{record.name} · {record.evaluation.status}</h3><p role="status">{record.group.outcome === 'success' ? '任务成功：执行与验收通过，参与机已返航落地。' : record.group.outcome === 'failure' ? `任务失败：${record.group.failureReason}` : record.group.outcome === 'cancelled' ? '任务由操作员主动终止。' : record.evaluation.status}</p><button type="button" onClick={() => {
+    const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `${record.id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }}>导出模拟执行记录 JSON</button><div className={styles.resultMetrics}><b>{record.evaluation.completion}%<small>航线完成率</small></b><b>{record.evaluation.duration}s<small>有效执行时间</small></b><b>{record.drones.length}<small>参与无人机</small></b><b>{record.evaluation.anomalyCount}<small>模拟异常</small></b>{record.evaluation.groups[0]?.metrics.map((m) => <b key={m.label}>{m.value}<small>{m.label}</small></b>)}</div><p>{new Date(record.startedAt).toLocaleString('zh-CN')} → {new Date(record.endedAt).toLocaleString('zh-CN')}（含暂停与安全收尾）</p><p>参与：{record.group.drones.map((id) => `${id}（${describeTaskRole(record.group.roles[id] ?? '协同机')}）`).join('、')} · 实际轨迹采样 {record.evaluation.groups[0]?.trajectorySamples ?? 0}</p><p>规划、逐机执行状态、实际模拟轨迹、成功或失败原因及事件均保存在本次会话记录中；可导出留档。非真实遥测。</p><details><summary>执行事件与异常处置（{record.events.length}）</summary><ol className={styles.eventTimeline}>{record.events.map((e) => <li key={e.id}><time>{new Date(e.time).toLocaleTimeString('zh-CN')}</time><b>{e.title}</b><span>{e.detail} [模拟]</span></li>)}</ol></details></section>;
+}

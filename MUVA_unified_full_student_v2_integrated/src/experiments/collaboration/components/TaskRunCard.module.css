@@ -1,0 +1,216 @@
+.card {
+  background: #1E293B;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.card:hover {
+  border-color: #38BDF8;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.1);
+}
+
+.card.selected {
+  border-color: #38BDF8;
+  background: #1E3A5F;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taskType {
+  font-size: 14px;
+  font-weight: 500;
+  color: #F8FAFC;
+}
+
+.status {
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+.runId {
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #64748B;
+}
+
+.metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #CBD5E1;
+}
+
+.pausedTime {
+  font-size: 11px;
+  color: #64748B;
+  margin-left: 4px;
+}
+
+.evaluation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score {
+  font-size: 13px;
+  font-weight: 600;
+  color: #22D3EE;
+}
+
+.grade {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #0F172A;
+  color: #F59E0B;
+}
+
+.drones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.droneTag {
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #0F172A;
+  color: #38BDF8;
+  border: 1px solid #1E293B;
+}
+
+.lastEvent {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #334155;
+}
+
+.actions button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnPause {
+  background: #F59E0B;
+  color: #0F172A;
+}
+
+.btnPause:hover {
+  background: #F97316;
+}
+
+.btnResume {
+  background: #22D3EE;
+  color: #0F172A;
+}
+
+.btnResume:hover {
+  background: #38BDF8;
+}
+
+.btnCancel {
+  background: #334155;
+  color: #F8FAFC;
+}
+
+.btnCancel:hover {
+  background: #475569;
+}
+
+.failureReason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  margin-top: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid #991B1B;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #FCA5A5;
+}
+
+.iconRunning {
+  color: #22D3EE;
+}
+
+.iconPaused {
+  color: #F59E0B;
+}
+
+.iconCompleted {
+  color: #4FD1C5;
+}
+
+.iconFailed {
+  color: #EF4444;
+}
+
+.iconCancelled {
+  color: #64748B;
+}
+
+.status-running {
+  border-left: 3px solid #22D3EE;
+}
+
+.status-paused {
+  border-left: 3px solid #F59E0B;
+}
+
+.status-completed {
+  border-left: 3px solid #4FD1C5;
+}
+
+.status-failed {
+  border-left: 3px solid #EF4444;
+}
+
+.status-cancelled {
+  border-left: 3px solid #64748B;
+}

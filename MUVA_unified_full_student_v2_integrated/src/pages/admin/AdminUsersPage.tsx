@@ -2,7 +2,7 @@ import { Ban, CheckCircle2, Pencil, Plus, Search, UserCog, Users } from 'lucide-
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import { Modal } from '../../components/common/Modal/Modal';
-import { adminApi } from '../../services/adminApi';
+import { adminApi, adminPresentation } from '../../services/adminApi';
 import type { AdminUser, AdminUserRole, AdminUserStatus, CreateAdminUserInput } from '../../types/admin';
 import styles from '../role/RolePages.module.css';
 
@@ -22,7 +22,7 @@ const emptyDraft: UserDraft = {
   username: '',
   role: 'student',
   organization: '',
-  password: '12345678',
+  password: '',
 };
 
 export function AdminUsersPage() {
@@ -75,8 +75,8 @@ export function AdminUsersPage() {
       organization: String(form.get('organization') ?? '').trim(),
       password: String(form.get('password') ?? ''),
     };
-    if (!input.name || !input.username || !input.organization || input.password.length < 6) {
-      setError('请完整填写用户信息，初始密码至少 6 位。');
+    if (!input.name || !input.username || !input.organization || input.password.length < 10) {
+      setError('请完整填写用户信息，初始密码至少 10 位。');
       return;
     }
     try {
@@ -98,6 +98,7 @@ export function AdminUsersPage() {
         name: String(form.get('name') ?? editing.name).trim(),
         role: String(form.get('role') ?? editing.role) as AdminUserRole,
         organization: String(form.get('organization') ?? editing.organization).trim(),
+        ...(String(form.get('password') ?? '') ? { password: String(form.get('password')) } : {}),
       });
       setUsers((items) => items.map((item) => item.id === updated.id ? updated : item));
       setEditing(null);
@@ -120,13 +121,13 @@ export function AdminUsersPage() {
   return (
     <section className={styles.rolePage}>
       <header className={styles.compactHeader}>
-        <div><h1>用户管理</h1><p>维护管理员、教师与学生账号。开发阶段使用 Mock Service，后端就绪后可直接切换管理端 API。</p></div>
+        <div><h1>用户管理</h1><p>维护管理员、教师与学生账号。可创建、停用和重置教师/学生账号；数据模式由部署配置决定。</p></div>
         <span><Users size={14} /> 账号与身份管理</span>
       </header>
 
       <section className={`${styles.panel} ${styles.adminSummaryPanel}`}>
         <div className={styles.miniSummaryGrid}>
-          <div><span>当前演示用户</span><strong>{counts.total}</strong><small>正式接口将返回全平台数量</small></div>
+          <div><span>用户总数</span><strong>{counts.total}</strong><small>按当前数据源统计</small></div>
           <div><span>教师账号</span><strong>{counts.teachers}</strong><small>可创建课程与教学实验</small></div>
           <div><span>学生账号</span><strong>{counts.students}</strong><small>仅访问本人课程与实验</small></div>
           <div><span>停用账号</span><strong>{counts.disabled}</strong><small>停用后禁止登录平台</small></div>
@@ -172,16 +173,16 @@ export function AdminUsersPage() {
       </section>
 
       {creating ? (
-        <Modal title="新增用户" description="创建账号后，正式后端可在此触发初始密码下发与审计记录。" onClose={() => setCreating(false)}>
+        <Modal title="新增用户" description="创建账号后请通过安全渠道把初始密码交给用户，并要求其妥善保管。" onClose={() => setCreating(false)}>
           <form className={styles.adminForm} onSubmit={createUser}>
             <div className={styles.formGrid}>
               <label>姓名<input name="name" placeholder="例如：赵老师" autoFocus /></label>
               <label>登录账号<input name="username" placeholder="例如：teacher03" /></label>
               <label>角色<select name="role" defaultValue={emptyDraft.role}><option value="student">学生</option><option value="teacher">教师</option><option value="admin">管理员</option></select></label>
               <label>所属 / 班级<input name="organization" placeholder="例如：自动化2班" /></label>
-              <label className={styles.formSpanTwo}>初始密码<input name="password" type="password" defaultValue={emptyDraft.password} /></label>
+              <label className={styles.formSpanTwo}>初始密码<input name="password" type="password" minLength={10} required autoComplete="new-password" defaultValue={emptyDraft.password} /></label>
             </div>
-            <div className={styles.formHint}>预留接口：POST /api/admin/users。当前仅写入前端 Mock 数据，不影响现有无人机后端。</div>
+            <div className={styles.formHint}>{adminPresentation.userHint}</div>
             <div className={styles.formActions}><button className={styles.ghostButton} type="button" onClick={() => setCreating(false)}>取消</button><button className={styles.primaryButton} type="submit">创建账号</button></div>
           </form>
         </Modal>
@@ -195,6 +196,7 @@ export function AdminUsersPage() {
               <label>登录账号<input value={editing.username} disabled /></label>
               <label>角色<select name="role" defaultValue={editing.role}><option value="student">学生</option><option value="teacher">教师</option><option value="admin">管理员</option></select></label>
               <label>所属 / 班级<input name="organization" defaultValue={editing.organization} /></label>
+              {adminPresentation.allowPasswordReset && <label>重置密码（留空则不修改，至少 10 位）<input name="password" type="password" autoComplete="new-password" /></label>}
             </div>
             <div className={styles.formActions}><button className={styles.ghostButton} type="button" onClick={() => setEditing(null)}>取消</button><button className={styles.primaryButton} type="submit">保存修改</button></div>
           </form>

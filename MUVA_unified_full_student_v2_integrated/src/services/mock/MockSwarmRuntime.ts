@@ -1,5 +1,6 @@
 import { distance, homes, swarmFrame } from '../../domain/swarmGeometry';
-import { shortestRoute, type RoutingBox } from '../../domain/swarmRouting';
+import { segmentDistance, shortestRoute, type RoutingBox, type RoutingSegment } from '../../domain/swarmRouting';
+import { planParallelRoutes } from '../../domain/swarmDeconfliction';
 import { acceptedMissions, completeMissionPath } from '../../domain/swarmMissionWorkflow';
 import type { SwarmService } from '../swarmContract';
 import type { Point, SwarmConfig, SwarmDrone, SwarmMission, SwarmMissionReceipt, SwarmSnapshot } from '../../types/swarm';
@@ -16,6 +17,9 @@ export class MockSwarmRuntime implements SwarmService {
   private listener: ((snapshot: SwarmSnapshot) => void) | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastTime = 0;
+  private reservations = new Map<string, RoutingSegment>();
+  private waiting = new Set<string>();
+  private dispatchOrder: string[] = [];
   private pendingUpload: { timer: ReturnType<typeof setTimeout>; reject: (error: Error) => void } | null = null;
 
   initialize(config: SwarmConfig): SwarmSnapshot {
@@ -37,7 +41,8 @@ export class MockSwarmRuntime implements SwarmService {
     this.missions = structuredClone(missions);
     this.snapshot = clone(snapshot);
     delete this.snapshot.interrupted;
-    this.snapshot.drones.filter((drone) => drone.state === 'RETURNING' && !drone.returnWaypoints).forEach((drone) => { drone.returnWaypoints = this.safeReturn(drone); });
+    this.prepareDispatch();
+    this.snapshot.drones.filter((drone) => drone.state === 'RETURNING' && !drone.returnWaypoints).forEach((drone) => { this.prepareReturn(drone); });
     if (['TAKING_OFF', 'HOLDING', 'RUNNING', 'PAUSED', 'RETURNING'].includes(this.snapshot.status)) this.startClock();
     return this.getStatus();
   }
@@ -87,25 +92,40 @@ export class MockSwarmRuntime implements SwarmService {
   private startClock(): void { if (this.timer) return; this.lastTime = performance.now(); this.timer = setInterval(() => { const now = performance.now(); this.tick(Math.min(0.5, (now - this.lastTime) / 1000)); this.lastTime = now; }, 250); }
   private halt(): void { if (this.timer) clearInterval(this.timer); this.timer = null; }
   takeoff(): void { this.ensure(['READY']); this.ensureUploaded(); this.snapshot.status = 'TAKING_OFF'; this.snapshot.drones.forEach((drone) => { drone.state = 'TAKING_OFF'; }); this.log('机群分时起飞'); this.startClock(); this.publish(); }
-  startMission(): void { this.ensure(['HOLDING']); this.snapshot.status = 'RUNNING'; this.snapshot.drones.filter((drone) => drone.state === 'HOLDING').forEach((drone) => { drone.state = 'RUNNING'; }); this.log('开始覆盖任务'); this.publish(); }
-  pauseMission(): void { this.ensure(['RUNNING']); this.snapshot.status = 'PAUSED'; this.snapshot.drones.filter((drone) => drone.state === 'RUNNING').forEach((drone) => { drone.state = 'PAUSED'; drone.speed = 0; }); this.log('任务暂停，原地悬停'); this.publish(); }
+  startMission(): void { this.ensure(['HOLDING']); this.prepareDispatch(); this.snapshot.status = 'RUNNING'; this.snapshot.drones.filter((drone) => drone.state === 'HOLDING').forEach((drone) => { drone.state = 'RUNNING'; }); this.log('多机并行执行；交叉航段自动局部等待避让'); this.publish(); }
+  pauseMission(): void { this.ensure(['RUNNING']); this.reservations.clear(); this.snapshot.status = 'PAUSED'; this.snapshot.drones.filter((drone) => drone.state === 'RUNNING').forEach((drone) => { drone.state = 'PAUSED'; drone.speed = 0; }); this.log('任务暂停，原地悬停'); this.publish(); }
   resumeMission(): void { this.ensure(['PAUSED']); this.snapshot.status = 'RUNNING'; this.snapshot.drones.filter((drone) => drone.state === 'PAUSED').forEach((drone) => { drone.state = 'RUNNING'; }); this.log('继续覆盖任务'); this.publish(); }
   returnDroneToHome(droneId: string): void {
     this.ensure(['TAKING_OFF', 'HOLDING', 'RUNNING', 'PAUSED', 'RETURNING']);
     const drone = this.snapshot.drones.find((item) => item.droneId === droneId);
     if (!drone || terminal(drone.state) || drone.state === 'RETURNING') throw new Error('该无人机当前无法返航');
-    drone.returnWaypoints = this.safeReturn(drone); drone.state = 'RETURNING'; this.log(`${droneId} 单机绕障返航，剩余覆盖任务不再分配`); this.publish();
+    this.reservations.clear(); drone.state = 'RETURNING'; drone.returnMode = 'RTL'; drone.returnWaypoints = [[...drone.homePosition]]; this.log(`${droneId} 模拟 RTL 直接返航，剩余覆盖任务不再分配`); this.publish();
   }
   returnToHome(): void {
     this.ensure(['TAKING_OFF', 'HOLDING', 'RUNNING', 'PAUSED', 'RETURNING']);
-    const routes = this.snapshot.drones.filter((drone) => !terminal(drone.state)).map((drone) => ({ drone, path: this.safeReturn(drone) }));
-    this.snapshot.status = 'RETURNING';
-    routes.forEach(({ drone, path }) => { drone.state = 'RETURNING'; drone.returnWaypoints = path; });
-    this.log('集群安全返航'); this.startClock(); this.publish();
+    this.reservations.clear(); this.snapshot.status = 'RETURNING';
+    this.snapshot.drones.filter((drone) => !terminal(drone.state)).forEach((drone) => {
+      drone.state = 'RETURNING';
+      drone.returnMode = 'RTL';
+      drone.returnWaypoints = [[...drone.homePosition]];
+    });
+    this.log('集群并行模拟 RTL 返航，各机独立降落'); this.startClock(); this.publish();
   }
   stop(): void { this.halt(); }
   shutdown(): void { this.dispose(); }
-  dispose(): void { this.halt(); this.cancelUpload(); this.listener = null; }
+  dispose(): void { this.halt(); this.cancelUpload(); this.reservations.clear(); this.waiting.clear(); this.dispatchOrder = []; this.listener = null; }
+  private prepareReturn(drone: SwarmDrone): boolean {
+    try {
+      drone.returnMode = 'planned';
+      drone.returnWaypoints = this.safeReturn(drone);
+      return true;
+    } catch (error: unknown) {
+      drone.speed = 0;
+      const message = `${drone.droneId} 返航路径暂不可用，悬停等待重新规划：${error instanceof Error ? error.message : '路径受阻'}`;
+      if (!this.snapshot.events.some((event) => event.endsWith(message))) this.log(message);
+      return false;
+    }
+  }
   private safeReturn(drone: SwarmDrone): Point[] {
     const mission = this.missions.find((item) => item.droneId === drone.droneId);
     const { toLocal, toGeo } = swarmFrame(this.config?.sceneOrigin);
@@ -116,6 +136,36 @@ export class MockSwarmRuntime implements SwarmService {
       return [east - margin, north - margin, east + margin, north + margin];
     });
     return shortestRoute(toLocal(drone.position), toLocal(drone.homePosition), [...(mission?.routingObstacles ?? []), ...waiting]).slice(1).map(toGeo);
+  }
+  private prepareDispatch(): void {
+    if (!this.config || !this.missions.length) return;
+    const { toLocal } = swarmFrame(this.config.sceneOrigin);
+    const schedule = planParallelRoutes(this.missions.map((mission) => completeMissionPath(mission, this.snapshot.drones.find((drone) => drone.droneId === mission.droneId)).map(toLocal)),
+      this.config.safety, this.config.speed, this.config.altitude / 5);
+    this.dispatchOrder = schedule.order.map((index) => this.missions[index]!.droneId);
+  }
+  private canMove(drone: SwarmDrone, target: Point): boolean {
+    if (this.reservations.has(drone.droneId)) return true;
+    const { toLocal } = swarmFrame(this.config?.sceneOrigin);
+    const segment: RoutingSegment = [toLocal(drone.position), toLocal(target)];
+    const clearance = this.config?.safety ?? 3;
+    const available = this.snapshot.drones.every((other) => {
+      if (other.droneId === drone.droneId || terminal(other.state)) return true;
+      const vertical = Math.abs(drone.altitude - other.altitude);
+      if (vertical >= clearance) return true;
+      const position = toLocal(other.position);
+      const reserved = this.reservations.get(other.droneId);
+      return segmentDistance(segment, [position, position]) >= Math.sqrt(clearance ** 2 - vertical ** 2) - .01
+        && (!reserved || segmentDistance(segment, reserved) >= clearance - .01);
+    });
+    if (!available) {
+      drone.speed = 0;
+      if (!this.waiting.has(drone.droneId)) { this.waiting.add(drone.droneId); this.log(`${drone.droneId} 交叉航段局部避让等待，其余航线继续并行`); }
+      return false;
+    }
+    this.reservations.set(drone.droneId, segment);
+    if (this.waiting.delete(drone.droneId)) this.log(`${drone.droneId} 冲突航段已释放，自动继续`);
+    return true;
   }
   private move(drone: SwarmDrone, target: Point, delta: number): boolean {
     const { toLocal } = swarmFrame(this.config?.sceneOrigin);
@@ -140,36 +190,37 @@ export class MockSwarmRuntime implements SwarmService {
     if (!this.config || delta <= 0 || ['COMPLETED', 'ABORTED', 'FAILED'].includes(this.snapshot.status)) return;
     if (this.snapshot.status === 'PAUSED' && !this.snapshot.drones.some((drone) => drone.state === 'RETURNING')) return;
     this.snapshot.elapsed += delta;
-    const urgentReturn = this.snapshot.drones.find((drone) => drone.state === 'RETURNING'
-      && drone.completedSegments < (this.missions.find((mission) => mission.droneId === drone.droneId)?.coverageSegments.length ?? Infinity));
-    const transfer = urgentReturn;
-    this.snapshot.drones.forEach((drone) => {
+    const ordered = [...this.snapshot.drones].sort((first, second) => this.dispatchOrder.indexOf(first.droneId) - this.dispatchOrder.indexOf(second.droneId));
+    ordered.forEach((drone) => {
       if (drone.state === 'TAKING_OFF') {
-        if (transfer && transfer.droneId !== drone.droneId) { drone.speed = 0; return; }
         drone.altitude = Math.min(drone.targetAltitude, drone.altitude + 5 * delta);
         if (drone.altitude === drone.targetAltitude) { drone.state = 'HOLDING'; this.log(`${drone.droneId} 起飞完成，悬停待命`); }
       } else if (drone.state === 'RUNNING') {
         const mission = this.missions.find((item) => item.droneId === drone.droneId);
-        if (transfer && transfer.droneId !== drone.droneId) { drone.speed = 0; return; }
         const target = mission?.waypoints[drone.waypointIndex];
-        if (!target) { drone.returnWaypoints = this.safeReturn(drone); drone.state = 'RETURNING'; return; }
+        if (!target) { drone.state = 'RETURNING'; this.prepareReturn(drone); return; }
+        if (!this.canMove(drone, target)) return;
         if (this.move(drone, target, delta)) {
+          this.reservations.delete(drone.droneId);
           drone.waypointIndex += 1;
           if (mission?.coverageWaypointIndices ? mission.coverageWaypointIndices.includes(drone.waypointIndex - 1) : drone.waypointIndex >= 2 && drone.waypointIndex % 2 === 0) drone.completedSegments += 1;
           drone.progress = Math.min(100, drone.completedSegments / (mission?.coverageSegments.length || 1) * 100);
-          if (drone.waypointIndex >= (mission?.waypoints.length || 0)) { drone.state = 'RETURNING'; drone.speed = 0; drone.returnWaypoints = mission?.returnPath?.slice(1) ?? this.safeReturn(drone); this.log(`${drone.droneId} 覆盖完成，立即独立返航`); }
+          if (drone.waypointIndex >= (mission?.waypoints.length || 0)) { drone.state = 'RETURNING'; drone.speed = 0; drone.returnWaypoints = mission?.returnPath?.slice(1); if (!drone.returnWaypoints) this.prepareReturn(drone); this.log(`${drone.droneId} 覆盖完成，立即独立返航`); }
         }
       } else if (drone.state === 'RETURNING') {
-        if (transfer && transfer.droneId !== drone.droneId) { drone.speed = 0; return; }
-        drone.returnWaypoints ??= this.safeReturn(drone);
-        const target = drone.returnWaypoints[0];
-        if (target && this.move(drone, target, delta)) drone.returnWaypoints.shift();
-        if (!drone.returnWaypoints.length) { drone.speed = 0; drone.altitude = Math.max(0, drone.altitude - 5 * delta); if (drone.altitude === 0) { drone.state = 'LANDED'; this.log(`${drone.droneId} 已安全降落`); } }
+        if (!drone.returnWaypoints && !this.prepareReturn(drone)) return;
+        const path = drone.returnWaypoints;
+        if (!path) return;
+        const target = path[0];
+        const directHome = drone.returnMode === 'RTL';
+        if (target && !directHome && !this.canMove(drone, target)) return;
+        if (target && this.move(drone, target, delta)) { this.reservations.delete(drone.droneId); path.shift(); }
+        if (!path.length) { drone.speed = 0; drone.altitude = Math.max(0, drone.altitude - 5 * delta); if (drone.altitude === 0) { drone.state = 'LANDED'; this.log(`${drone.droneId} 已安全降落`); } }
       }
     });
     const total = this.missions.reduce((sum, mission) => sum + mission.coverageSegments.length, 0);
     this.snapshot.coverage = total ? this.snapshot.drones.reduce((sum, drone) => sum + drone.completedSegments, 0) / total * 100 : 0;
-    if (this.snapshot.status === 'RUNNING' && this.snapshot.drones.some((drone) => drone.state === 'RETURNING')) {
+    if (this.snapshot.status === 'RUNNING' && !this.snapshot.drones.some((drone) => drone.state === 'RUNNING') && this.snapshot.drones.some((drone) => drone.state === 'RETURNING')) {
       this.snapshot.status = 'RETURNING'; this.log('已完成各自覆盖的无人机正在独立返航');
     }
     if (this.snapshot.status === 'TAKING_OFF' && this.snapshot.drones.every((drone) => drone.state === 'HOLDING')) { this.snapshot.status = 'HOLDING'; this.log('机群悬停就绪'); }
